@@ -586,7 +586,7 @@
                 for(let idx=0; idx<alocs.length; idx++) {
                     if(u.id === tid && idx === selfIdx) continue;
                     const salas = tokensAmbiente(alocs[idx].split('|')[2]).filter(s => !ambienteEhGrupo(s));
-                    if(salas.includes(sala)) return true;
+                    if(salas.includes(sala) && sala.toUpperCase() !== 'SEM AMBIENTE') return true;
                 }
             }
             return false;
@@ -771,6 +771,9 @@
         }
 
         function migrar(salvarAoFinal=true){
+            if (!amb.some(a => a.tipo.toUpperCase() === 'SEM AMBIENTE')) {
+                amb.unshift({ tipo: 'SEM AMBIENTE', cap: 9999, qtd: 1, nomes: [] });
+            }
             amb.forEach(a => {
                 if (a.qtd > 1 && (!a.nomes || a.nomes.length !== a.qtd)) {
                     a.nomes = [];
@@ -1384,6 +1387,7 @@
             if(ignoreAmb||!ambTipoStr) return null;
             const me = tur.find(x=>x.id===tid);
             for(let ambTipo of tokensAmbiente(ambTipoStr)) {
+                if (ambTipo.toUpperCase() === 'SEM AMBIENTE') continue;
                 const base = getBaseAmb(ambTipo);
                 if(!base) continue; 
 
@@ -1868,7 +1872,7 @@
 
                             let cellHTML = '-';
                             if(achadas.length > 0) {
-                                const conflito = item.isGrupo ? achadas.length > item.qtd : achadas.length > 1;
+                                const conflito = (item.nome.toUpperCase() !== 'SEM AMBIENTE') && (item.isGrupo ? achadas.length > item.qtd : achadas.length > 1);
                                 let bg = conflito ? 'bg-red-200 border-l-4 border-red-600' : 'bg-yellow-50';
                                 cellHTML = `<div class="p-1 ${bg} rounded text-[10px] leading-tight text-center">` + achadas.map(a => `<b class="text-gray-800">${a.turma}</b><br><span class="text-indigo-700 font-bold">${a.dn}</span><br><span class="text-gray-500 italic">${a.profs}</span>`).join('<hr class="my-1 border-gray-300">') + `</div>`;
                             }
@@ -2145,7 +2149,7 @@
                                     countedForThisTurma.add(s);
                                     const base = getBaseAmb(s);
                                     if (base) {
-                                        if (!base.isGeneric) {
+                                        if (!base.isGeneric && s.toUpperCase() !== 'SEM AMBIENTE') {
                                             usedSpecifics.push(s);
                                             if(!turmasBySpecific[s]) turmasBySpecific[s] = [];
                                             turmasBySpecific[s].push(t);
@@ -2355,7 +2359,7 @@
                                 countedForThisTurma.add(s);
                                 const base = getBaseAmb(s);
                                 if(base) {
-                                    if(!base.isGeneric) usedSpecifics.push(s);
+                                    if(!base.isGeneric && s.toUpperCase() !== 'SEM AMBIENTE') usedSpecifics.push(s);
                                 }
                             });
                         });
@@ -2548,14 +2552,16 @@
                                     }
                                 });
 
-                                if (base) {
-                                    if (base.isGeneric) {
-                                        if (uso >= base.obj.qtd || t.alunos > base.obj.cap) return { ok: false, salas: [] };
+                                if (sl.toUpperCase() !== 'SEM AMBIENTE') {
+                                    if (base) {
+                                        if (base.isGeneric) {
+                                            if (uso >= base.obj.qtd || t.alunos > base.obj.cap) return { ok: false, salas: [] };
+                                        } else {
+                                            if (uso >= 1 || t.alunos > base.obj.cap) return { ok: false, salas: [] };
+                                        }
                                     } else {
-                                        if (uso >= 1 || t.alunos > base.obj.cap) return { ok: false, salas: [] };
+                                        if (uso >= 1) return { ok: false, salas: [] };
                                     }
-                                } else {
-                                    if (uso >= 1) return { ok: false, salas: [] };
                                 }
                             }
                             rArr.push(sl);
@@ -2944,14 +2950,16 @@
                                                             }
                                                         });
                                                         
-                                                        if (base) {
-                                                            if (base.isGeneric) {
-                                                                if (uso >= base.obj.qtd || t.alunos > base.obj.cap) { free=false; break; }
+                                                        if (sl.toUpperCase() !== 'SEM AMBIENTE') {
+                                                            if (base) {
+                                                                if (base.isGeneric) {
+                                                                    if (uso >= base.obj.qtd || t.alunos > base.obj.cap) { free=false; break; }
+                                                                } else {
+                                                                    if (uso >= 1 || t.alunos > base.obj.cap) { free=false; break; }
+                                                                }
                                                             } else {
-                                                                if (uso >= 1 || t.alunos > base.obj.cap) { free=false; break; }
+                                                                if (uso >= 1) { free=false; break; }
                                                             }
-                                                        } else {
-                                                            if (uso >= 1) { free=false; break; } 
                                                         }
                                                         
                                                         if(!free) { fSala = true; break; }
@@ -3212,8 +3220,8 @@
         function salaLivreIntervaloIndexado(idx, d, tCode, startH, duracao, sala, reservas) {
             for(let k=0; k<duracao; k++) {
                 const key = chaveSlotIndexado(d, tCode, startH+k);
-                if(salaOcupadaIndexada(idx, d, tCode, startH+k, sala)) return false;
-                if(reservas && reservas.has(`${key}|${sala}`)) return false;
+                if(sala.toUpperCase() !== 'SEM AMBIENTE' && salaOcupadaIndexada(idx, d, tCode, startH+k, sala)) return false;
+                if(sala.toUpperCase() !== 'SEM AMBIENTE' && reservas && reservas.has(`${key}|${sala}`)) return false;
             }
             return true;
         }
@@ -3938,7 +3946,7 @@
                             });
                         });
                         if(!achadas.length) return '<td class="border">-</td>';
-                        const conflito = item.isGrupo ? achadas.length > item.qtd : achadas.length > 1;
+                        const conflito = (item.nome.toUpperCase() !== 'SEM AMBIENTE') && (item.isGrupo ? achadas.length > item.qtd : achadas.length > 1);
                         const txt = achadas.map((a,ix)=>`<div class="${ix>0?'border-t border-gray-300 mt-1 pt-1':''}"><div class="print-cell-truncate"><b>${a.turma}</b></div><div class="print-cell-truncate">${a.dn}</div><div class="print-cell-truncate italic">${a.profs}</div><div class="print-cell-truncate text-[9px]">${a.sala}</div></div>`).join('');
                         return `<td class="border align-top ${conflito?'bg-red-100 text-red-800 font-semibold':''}" style="max-width: 0;">${txt}</td>`;
                     };
