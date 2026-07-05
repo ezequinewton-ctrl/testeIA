@@ -1,384 +1,3 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CHICri - Cálculo de Horários IFSC Criciúma v10.33</title>
-	<link rel="icon" href="https://i.ibb.co/qFgNh0LT/CHICri.png" type="image/png">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style> 
-        body { background-color: #f3f4f6; }
-        .table-container { overflow-x: auto; }
-        .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.5rem; }
-        select { background-position: right 0.1rem center; padding-right: 1rem; }
-        .badge-progresso { transition: all 0.3s; }
-        .restricao-cell { transition: all 0.2s; user-select: none; }
-        .res-livre { background-color: white; border: 1px solid #e5e7eb; color: #9ca3af; }
-        .res-block { background-color: #ef4444; border: 1px solid #dc2626; color: white; }
-        .res-evitar { background-color: #f59e0b; border: 1px solid #d97706; color: white; }
-        .res-active { background-color: #10b981; border: 1px solid #059669; color: white; }
-        
-        #loadingOverlay { backdrop-filter: blur(2px); }
-        .env-select { -webkit-appearance: none; -moz-appearance: none; text-indent: 1px; text-overflow: ''; }
-        
-        #printArea { display: none; }
-        body.modo-tela-extra nav { display: none !important; }
-        body.modo-tela-extra .painel-config { display: none; }
-        body.modo-tela-extra .painel-horarios { grid-column: 1 / -1; }
-        
-        @media print {
-            @page { size: landscape; margin: 10mm; }
-            body { background-color: white; margin: 0; padding: 0; }
-            nav, .container, #customModal, #reportModal, #ambSlotModal, #loadingOverlay, #autoGenModal { display: none !important; }
-            #printArea { display: block !important; width: 100%; }
-            .page-break { page-break-after: always; break-after: page; }
-            .no-break { break-inside: avoid; page-break-inside: avoid; }
-            .bg-tarde { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .print-cell-truncate { display: block; overflow: hidden; white-space: nowrap; text-overflow: clip; width: 100%; }
-        }
-    </style>
-</head>
-<body class="text-gray-800 text-sm">
-
-    <nav class="bg-green-700 text-white p-3 shadow-lg sticky top-0 z-40">
-        <div class="container mx-auto flex flex-wrap justify-between items-center gap-2">
-            <h1 class="text-lg font-bold"><i class="fas fa-calendar-alt mr-2"></i>CHICri v10.33</h1>
-            
-            <div class="flex gap-2 items-center">
-                <div class="flex items-center bg-green-800 rounded px-2 py-1 border border-green-600 mr-2" title="Quantidade de aulas por turno">
-                    <i class="fas fa-clock mr-1 text-xs text-green-300"></i>
-                    <input type="number" id="cfgAulas" min="1" max="10" value="4" class="w-8 text-center text-xs bg-transparent text-white focus:outline-none font-bold" onchange="atualizarConfigAulas(this.value)">
-                </div>
-
-                <div class="relative group">
-                    <button class="text-xs bg-green-800 hover:bg-green-900 text-white py-1 px-3 rounded shadow transition font-bold border border-green-600 flex items-center mr-2">
-                        <i class="fas fa-sliders-h mr-1"></i> Pesos
-                    </button>
-                    <div class="absolute right-0 mt-0 w-80 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 p-3 text-xs text-gray-700">
-                        <div class="font-bold text-gray-700 mb-2">Pesos das restrições globais</div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <label>Bloqueio ignorado<input id="pesoRestricao" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('restricao', this.value)"></label>
-                            <label>Evitar turno<input id="pesoEvitar" type="number" min="0" step="100" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('evitar', this.value)"></label>
-                            <label>Manhã + noite<input id="pesoManhaNoite" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('manhaNoiteMesmoDia', this.value)"></label>
-                            <label>3 turnos no dia<input id="pesoTresTurnos" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('tresTurnos', this.value)"></label>
-                            <label>Noite + manhã seg.<input id="pesoNoiteManha" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('noiteManha', this.value)"></label>
-                            <label>Todos os dias<input id="pesoTodosDias" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('todosDias', this.value)"></label>
-                            <label>Troca de ambiente<input id="pesoEstabilidadeSala" type="number" min="0" step="500" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('estabilidadeSala', this.value)"></label>
-                            <label>Cruzar intervalo<input id="pesoIntervalo" type="number" min="0" step="500" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('intervalo', this.value)"></label>
-                            <label>Quebrar blocos<input id="pesoFragmentacao" type="number" min="0" step="500" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('fragmentacaoBlocos', this.value)"></label>
-                            <label>Dia sem turno<input id="pesoTurnoDiario" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('turnoDiario', this.value)"></label>
-                            <label>Turno incompleto<input id="pesoTurnoIncompleto" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('turnoIncompleto', this.value)"></label>
-                            <label>Concentrar turnos<input id="pesoConcentracaoTurnos" type="number" min="0" step="500" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('concentracaoTurnos', this.value)"></label>
-                            <label>Sala específica dupla<input id="pesoSalaEspecifica" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('salaEspecifica', this.value)"></label>
-                        </div>
-                        <button onclick="restaurarPesosPadrao()" class="mt-3 w-full bg-gray-100 hover:bg-gray-200 text-gray-700 rounded py-1 font-bold">Restaurar padrão</button>
-                    </div>
-                </div>
-
-                <button onclick="abrirTelaSeparada('profs')" class="text-xs bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded shadow transition font-bold border border-blue-400" title="Abrir horários dos professores em outra guia">
-                    <i class="fas fa-external-link-alt mr-1"></i> Profs
-                </button>
-                <button onclick="abrirTelaSeparada('ambs')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded shadow transition font-bold border border-yellow-400 mr-2" title="Abrir horários dos ambientes em outra guia">
-                    <i class="fas fa-external-link-alt mr-1"></i> Ambs
-                </button>
-
-                <div class="relative group">
-                    <button class="text-xs bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded shadow transition font-bold border border-blue-500 flex items-center mr-2">
-                        <i class="fas fa-print mr-1"></i> PDF
-                    </button>
-                    <div class="absolute right-0 mt-0 w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200">
-                        <a href="#" onclick="imprimirRelatorio('alunos')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Alunos</a>
-                        <a href="#" onclick="imprimirRelatorio('professores')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Professores</a>
-                        <a href="#" onclick="imprimirRelatorio('ambientes')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Ambientes</a>
-                    </div>
-                </div>
-
-                <div class="w-px bg-green-500 mx-1 h-6"></div>
-
-                <div class="relative group">
-                    <button class="text-xs bg-teal-600 hover:bg-teal-700 text-white py-1 px-3 rounded shadow transition font-bold border border-teal-500 flex items-center mr-2">
-                        <i class="fas fa-palette mr-1"></i> Legenda
-                    </button>
-                    <div class="absolute right-0 mt-0 w-56 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 p-3 text-xs text-gray-700">
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-red-200 border-l-4 border-red-600 inline-block mr-2"></span> Restrição (Bloqueio)</div>
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-yellow-200 border-l-4 border-yellow-500 inline-block mr-2"></span> Evitar Turno</div>
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-gray-300 border-l-4 border-black inline-block mr-2"></span> Choque Prof (2 turmas)</div>
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-gray-200 border-l-4 border-gray-500 inline-block mr-2"></span> Excesso de Carga</div>
-                        <div class="flex items-center"><span class="w-3 h-3 bg-orange-200 border-l-4 border-orange-600 inline-block mr-2"></span> Conflito de Sala</div>
-                    </div>
-                </div>
-
-                <button onclick="iniciarGeracaoAutomatica()" class="text-xs bg-purple-500 hover:bg-purple-600 text-white py-1 px-3 rounded shadow transition font-bold border border-purple-400 mr-1" title="Gerar Horário Automaticamente">
-                    <i class="fas fa-magic mr-1"></i> Auto
-                </button>
-                <button onclick="desfazerGeracao()" id="btnUndo" class="text-xs bg-gray-500 hover:bg-gray-600 text-white py-1 px-3 rounded shadow transition font-bold border border-gray-400 mr-2 hidden" title="Desfazer Última Geração Auto">
-                    <i class="fas fa-undo"></i>
-                </button>
-
-                <button onclick="abrirRelatorio()" class="relative text-xs bg-gray-800 hover:bg-gray-900 text-white py-1 px-3 rounded shadow transition mr-2 border border-gray-600">
-                    <i class="fas fa-bell mr-1"></i> Avisos
-                    <span id="badgeAvisos" class="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden">0</span>
-                </button>
-
-                <div class="w-px bg-green-500 mx-1 h-6"></div>
-
-                <button onclick="exportarCRIC()" class="text-xs bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded shadow transition">
-                    <i class="fas fa-download"></i>
-                </button>
-
-                <div class="relative group">
-                    <button class="text-xs bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded shadow transition flex items-center">
-                        <i class="fas fa-upload"></i>
-                    </button>
-                    <div class="absolute right-0 mt-0 w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200">
-                        <a href="#" onclick="document.getElementById('cricInput').click()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs"><i class="fas fa-file-import mr-1"></i> Arquivo Local (.cric)</a>
-                        <a href="#" onclick="importarDaWeb()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs"><i class="fas fa-cloud-download-alt mr-1"></i> Importar da Nuvem</a>
-                    </div>
-                </div>
-                <input type="file" id="cricInput" accept=".cric,.csv" class="hidden" onclick="this.value=null" onchange="importarCRIC(this)">
-
-                <button onclick="limparTudo()" class="text-xs bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded shadow transition ml-1">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    </nav>
-
-    <div id="printArea"></div>
-
-    <div class="container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-        <div class="painel-config lg:col-span-4 space-y-6 max-h-[90vh] overflow-visible pr-2">
-            
-            <div class="bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500">
-                <div class="flex justify-between items-center mb-2">
-                    <h2 class="font-bold text-base text-yellow-700">1. Ambientes</h2>
-                    <label class="flex items-center text-[10px] text-gray-500 cursor-pointer">
-                        <input type="checkbox" id="chkIgnoreAmb" class="mr-1" onchange="toggleIgnoreAmb(this.checked)"> Ignorar controle
-                    </label>
-                </div>
-                <div id="areaAmbientes">
-                    <div class="grid grid-cols-4 gap-2 mb-2">
-                        <input type="text" id="inputAmbTipo" placeholder="Tipo (ex: Lab)" class="col-span-4 border p-2 rounded text-xs focus:outline-none">
-                        <input type="number" id="inputAmbCap" placeholder="Cap." value="40" class="border p-2 rounded text-xs focus:outline-none">
-                        <input type="number" id="inputAmbQtd" placeholder="Qtd" value="1" min="1" class="border p-2 rounded text-xs focus:outline-none" onchange="document.getElementById('inputAmbNomes').style.display = this.value > 1 ? 'block' : 'none'">
-                        <button onclick="adicionarAmbiente()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-2 rounded text-xs font-bold col-span-2"><i class="fas fa-plus"></i> Adicionar</button>
-                        <input type="text" id="inputAmbNomes" placeholder="Nomes das salas (sep. por vírgula)" class="col-span-4 border p-2 rounded text-xs focus:outline-none" style="display:none;">
-                    </div>
-                    
-                    <div class="mt-2 border-t pt-2 group relative">
-                        <p class="text-[10px] text-gray-400 mb-1"><i class="fas fa-chevron-down"></i> Hover para expandir os ambientes</p>
-                        <div class="max-h-16 overflow-hidden group-hover:max-h-60 group-hover:overflow-y-auto transition-all duration-300 relative pr-1">
-                            <div id="listaAmbientes" class="flex flex-wrap gap-1 pb-4"></div>
-                            <div class="absolute bottom-0 left-0 w-full h-4 bg-gradient-to-t from-white to-transparent group-hover:hidden pointer-events-none"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white p-4 rounded-lg shadow border-l-4 border-purple-500">
-                <h2 class="font-bold text-base mb-2 text-purple-700">2. Disciplinas</h2>
-                <div class="flex flex-col gap-2 mb-2">
-                    <input type="text" id="inputDisc" placeholder="Nome" class="border p-2 rounded w-full text-xs focus:outline-none">
-                    <div class="flex gap-2 w-full items-start">
-                        <input type="number" id="inputDiscCarga" placeholder="Aulas" class="border p-2 rounded w-16 text-center text-xs focus:outline-none">
-                        <input type="number" id="inputDiscSplits" placeholder="Blocos" class="border p-2 rounded w-20 text-center text-xs focus:outline-none" title="Número de blocos na semana (opcional)">
-                        <div id="checkDiscAmb" class="check-grid flex-1 max-h-32 overflow-y-auto bg-gray-50 p-1 rounded border text-[10px]"></div>
-                        <div class="flex flex-col gap-1 h-full">
-                            <button onclick="salvarDisciplina()" id="btnSalvarDisc" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-xs flex-1" title="Salvar"><i class="fas fa-plus"></i></button>
-                            <button onclick="cancelarEdicaoDisc()" id="btnCancelEditDisc" class="hidden bg-gray-400 hover:bg-gray-500 text-white px-3 py-1 rounded text-xs flex-1" title="Cancelar"><i class="fas fa-times"></i></button>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-2 border-t pt-2 group relative">
-                    <p class="text-[10px] text-gray-400 mb-1"><i class="fas fa-chevron-down"></i> Hover para expandir as disciplinas</p>
-                    <div class="max-h-12 overflow-hidden group-hover:max-h-60 group-hover:overflow-y-auto transition-all duration-300 relative pr-1">
-                        <div id="tagsDisciplinas" class="flex flex-wrap gap-1 pb-4"></div>
-                        <div class="absolute bottom-0 left-0 w-full h-4 bg-gradient-to-t from-white to-transparent group-hover:hidden pointer-events-none"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">
-                <h2 class="font-bold text-base mb-2 text-blue-700">3. Professor</h2>
-                <input type="hidden" id="editProfId">
-                <input type="text" id="inputProf" placeholder="Nome" class="border p-2 rounded w-full mb-3 text-xs focus:outline-none">
-                
-                <div class="group relative mb-3">
-                    <p class="text-[10px] text-gray-400 mb-1"><i class="fas fa-chevron-down"></i> Hover para expandir (Leciona)</p>
-                    <div class="max-h-16 overflow-hidden group-hover:max-h-48 group-hover:overflow-y-auto transition-all duration-300 relative bg-gray-50 rounded border p-2">
-                        <div id="checkProfDisc" class="check-grid text-xs pb-4"></div>
-                        <div class="absolute bottom-0 left-0 w-full h-6 bg-gradient-to-t from-gray-50 to-transparent group-hover:hidden pointer-events-none"></div>
-                    </div>
-                </div>
-
-                <p class="font-bold text-xs mb-1 text-gray-600">Disponibilidade:</p>
-                <div id="gridRestricoesProf" class="grid grid-cols-6 gap-1 text-[10px] text-center mb-1 bg-gray-50 p-2 rounded border">
-                </div>
-                <label class="flex items-center text-[10px] text-red-600 font-bold mb-3 cursor-pointer">
-                    <input type="checkbox" id="chkProfSemRestricao" class="mr-1 accent-red-600"> Ignorar exaustão (Topa 3 turnos e Noite/Manhã)
-                </label>
-                <div class="flex gap-2">
-                    <button id="btnSalvarProf" onclick="salvarProfessor()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs">Salvar</button>
-                    <button id="btnCancelEditProf" onclick="cancelarEdicaoProf()" class="hidden w-1/3 bg-gray-400 text-white py-2 rounded text-xs">Cancelar</button>
-                </div>
-                <div class="mt-4 border-t pt-2 group relative">
-                    <p class="text-[10px] text-gray-400 mb-1"><i class="fas fa-chevron-down"></i> Hover para expandir os professores</p>
-                    <div class="max-h-16 overflow-hidden group-hover:max-h-60 group-hover:overflow-y-auto transition-all duration-300 relative pr-1">
-                        <ul id="listaProfessores" class="text-xs space-y-1 pb-4"></ul>
-                        <div class="absolute bottom-0 left-0 w-full h-4 bg-gradient-to-t from-white to-transparent group-hover:hidden pointer-events-none"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white p-4 rounded-lg shadow border-l-4 border-green-500">
-                <h2 class="font-bold text-base mb-2 text-green-700">4. Turma e Vínculos</h2>
-                <input type="hidden" id="editTurmaId">
-                <div class="mb-2">
-                    <input type="text" id="inputTurma" placeholder="Nome" class="border p-2 rounded w-full mb-1 text-sm focus:outline-none">
-                    <div class="flex gap-1">
-                        <input type="text" id="inputCurso" placeholder="Curso" class="border p-2 rounded w-2/3 text-xs bg-gray-50 focus:outline-none">
-                        <input type="number" id="inputTurmaQtd" placeholder="Alunos" value="40" class="border p-2 rounded w-1/3 text-xs text-center focus:outline-none">
-                    </div>
-                </div>
-                <p class="font-bold text-xs mb-1 text-gray-600">Turnos:</p>
-                <div id="gridTurnosTurma" class="grid grid-cols-6 gap-1 text-[10px] text-center mb-3 bg-gray-50 p-2 rounded border">
-                </div>
-                <div class="grid grid-cols-1 gap-1 mb-3 text-[10px] text-gray-700">
-                    <label class="flex items-center cursor-pointer bg-green-50 border border-green-100 rounded px-2 py-1" title="A geração pode usar qualquer turno não bloqueado em vermelho.">
-                        <input type="checkbox" id="chkTurnosFlexiveis" class="mr-2 accent-green-600" checked onchange="atualizarModoTurnosTurma()"> Turnos flexíveis na geração automática
-                    </label>
-                    <label class="flex items-center cursor-pointer bg-blue-50 border border-blue-100 rounded px-2 py-1" title="A geração prioriza pelo menos um turno com aula em cada dia da semana.">
-                        <input type="checkbox" id="chkExigirTurnoDiario" class="mr-2 accent-blue-600"> Exigir pelo menos 1 turno por dia
-                    </label>
-                </div>
-                
-                <div class="group relative mb-3">
-                    <p class="text-[10px] text-gray-400 mb-1"><i class="fas fa-chevron-down"></i> Hover para expandir as disciplinas</p>
-                    <div class="max-h-16 overflow-hidden group-hover:max-h-[70vh] group-hover:overflow-y-auto transition-all duration-300 relative bg-gray-50 rounded border p-2">
-                        <div id="checkTurmaDisc" class="check-grid text-xs pb-4"></div>
-                        <div class="absolute bottom-0 left-0 w-full h-6 bg-gradient-to-t from-gray-50 to-transparent group-hover:hidden pointer-events-none"></div>
-                    </div>
-                </div>
-                
-                <div class="flex gap-2 mb-3">
-                    <button id="btnSalvarTurma" onclick="adicionarTurma()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs uppercase">Criar Turma</button>
-                    <button id="btnCancelEditTurma" onclick="cancelarEdicaoTurma()" class="hidden w-1/3 bg-gray-400 hover:bg-gray-500 text-white py-2 rounded text-xs uppercase">Cancelar</button>
-                </div>
-                
-                <p class="font-bold text-xs mb-1 text-gray-600 mt-2 border-t pt-2">Turmas Criadas (Vincule os Professores):</p>
-                <div id="listaTurmas" class="flex flex-col gap-2 text-xs overflow-y-auto max-h-[60vh] pb-6"></div>
-            </div>
-        </div>
-
-        <div class="painel-horarios lg:col-span-8">
-            <!-- Abas de Navegação -->
-            <div class="flex border-b border-gray-300 mb-4 bg-white rounded-t shadow-sm">
-                <button id="tabBtnTurmas" onclick="mudarAba('turmas')" class="py-2 px-4 border-b-2 border-purple-600 font-bold text-purple-700 flex-1 hover:bg-gray-50 transition"><i class="fas fa-users mr-2"></i> Turmas</button>
-                <button id="tabBtnProfs" onclick="mudarAba('profs')" class="py-2 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-bold flex-1 hover:bg-gray-50 transition"><i class="fas fa-chalkboard-teacher mr-2"></i> Professores</button>
-                <button id="tabBtnAmbs" onclick="mudarAba('ambs')" class="py-2 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-bold flex-1 hover:bg-gray-50 transition"><i class="fas fa-building mr-2"></i> Ambientes</button>
-            </div>
-
-            <!-- View Turmas -->
-            <div id="viewTurmas">
-                <div class="flex justify-end mb-2 gap-2">
-                    <label class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-800 py-1 px-3 rounded shadow transition font-bold flex items-center border border-purple-300 cursor-pointer" title="Marcar/Desmarcar todas para Geração Automática">
-                        <input type="checkbox" id="chkToggleAutoAll" class="mr-2 accent-purple-600" checked onchange="toggleAllAuto(this.checked)"> <i class="fas fa-magic mr-1"></i> Selecionar Todas
-                    </label>
-                    <button onclick="toggleAllGrades()" id="btnToggleAll" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-3 rounded shadow transition font-bold flex items-center border border-gray-300">
-                        <i class="fas fa-expand-alt mr-2"></i> Expandir Tudo
-                    </button>
-                </div>
-                <div id="containerGrades" class="space-y-8 pb-20"></div>
-            </div>
-
-            <!-- View Professores -->
-            <div id="viewProfs" class="hidden">
-                <div id="containerProfs" class="space-y-8 pb-20"></div>
-            </div>
-
-            <!-- View Ambientes -->
-            <div id="viewAmbs" class="hidden">
-                <div id="containerAmbs" class="space-y-8 pb-20"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modais -->
-    <div id="autoGenModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-[400px] max-w-full mx-4">
-            <h3 class="text-lg font-bold mb-2 text-gray-800"><i class="fas fa-magic text-purple-600"></i> Geração Automática</h3>
-            <p class="text-gray-600 mb-6 text-sm">Como deseja processar os horários já definidos na grade?</p>
-			
-            <div class="mb-4">
-				<label class="text-xs font-bold text-gray-600 block mb-1">Reinicios/rodadas de busca (0 = ate clicar Parar):</label>
-				<input type="number" id="inputIteracoes" value="5000" min="0" max="1000000" step="100" class="w-full border p-2 rounded text-sm focus:outline-none focus:border-purple-500">
-                <p class="text-[9px] text-gray-500 mt-1 leading-tight">Cada rodada reinicia a distribuicao, testa uma ordem diferente e conserva o melhor horario encontrado.</p>
-			</div>
-
-            <div class="mb-4 bg-gray-50 p-2 rounded border border-gray-200">
-                <label class="flex items-center text-xs font-bold text-gray-600 mb-1 cursor-pointer">
-                    <input type="checkbox" id="chkAutoDownload" class="mr-2 accent-purple-600" onchange="document.getElementById('inputAutoDownloadMin').disabled = !this.checked">
-                    Auto-backup (.cric) após (minutos):
-                </label>
-                <input type="number" id="inputAutoDownloadMin" value="15" min="1" disabled class="w-full border p-2 rounded text-sm focus:outline-none focus:border-purple-500 disabled:bg-gray-200 disabled:text-gray-400">
-                <p class="text-[9px] text-gray-500 mt-1 leading-tight">Faz o download sempre que achar uma grade com menos erros, a partir do tempo definido.</p>
-            </div>
-
-            <div class="flex flex-col gap-3">
-                <button onclick="executarGeracaoAutomatica(true)" class="w-full bg-blue-600 text-white py-2.5 rounded hover:bg-blue-700 text-sm shadow transition font-bold flex items-center justify-center">
-                    <i class="fas fa-lock mr-2"></i> Preservar Grade Atual (Só preencher buracos)
-                </button>
-                <button onclick="executarGeracaoAutomatica(false)" class="w-full bg-red-600 text-white py-2.5 rounded hover:bg-red-700 text-sm shadow transition font-bold flex items-center justify-center">
-                    <i class="fas fa-trash-alt mr-2"></i> Apagar Tudo e Recriar do Zero
-                </button>
-                <button onclick="document.getElementById('autoGenModal').classList.add('hidden')" class="w-full text-gray-500 py-2 hover:bg-gray-100 rounded text-sm transition mt-2 border border-gray-300">
-                    Cancelar
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <div id="loadingOverlay" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden flex items-center justify-center z-50 flex-col text-white">
-        <i class="fas fa-cog fa-spin text-4xl mb-4"></i>
-        <h3 class="text-xl font-bold">Otimizando...</h3>
-        <p id="loadingStatus" class="text-xs mt-4 font-mono text-green-300"></p>
-        <p id="loadingBest" class="text-sm mt-2 font-bold text-yellow-400"></p>
-        <button onclick="exportarCRICAtual()" id="btnDownloadCurrent" class="mt-2 bg-green-600 hover:bg-green-700 text-white font-bold py-1 px-4 rounded shadow border border-green-500 text-xs hidden"><i class="fas fa-download"></i> Baixar Melhor Atual (.cric)</button>
-		<button onclick="interromperGeracao()" id="btnPararGen" class="mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow border border-red-500" style="cursor:pointer;">Parar e usar a melhor distribuição até o momento</button>
-	</div>
-    
-    <div id="reportModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl w-[600px] max-w-full mx-4 flex flex-col max-h-[80vh]">
-            <div class="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg"><h3 class="text-lg font-bold">Relatório</h3><button onclick="document.getElementById('reportModal').classList.add('hidden')" class="text-gray-400"><i class="fas fa-times"></i></button></div>
-            <div id="reportContent" class="p-4 overflow-y-auto flex-1 text-sm space-y-3"></div>
-            <div class="p-3 border-t bg-gray-50 text-right"><button onclick="document.getElementById('reportModal').classList.add('hidden')" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm">Fechar</button></div>
-        </div>
-    </div>
-    
-    <div id="ambSlotModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl w-[460px] max-w-full mx-4 flex flex-col max-h-[80vh]">
-            <div class="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
-                <h3 class="text-lg font-bold">Ambientes da aula</h3>
-                <button onclick="fecharEditorAmbientesSlot()" class="text-gray-400"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="p-4 overflow-y-auto flex-1">
-                <p class="text-xs text-gray-500 mb-3">Selecione um ou mais ambientes para esta aula da turma.</p>
-                <div id="ambSlotOptions" class="grid grid-cols-1 gap-1 text-xs"></div>
-            </div>
-            <div class="p-3 border-t bg-gray-50 flex justify-end gap-2">
-                <button onclick="fecharEditorAmbientesSlot()" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded text-sm">Cancelar</button>
-                <button onclick="salvarAmbientesSlot()" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm shadow">Aplicar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="customModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-full mx-4"><h3 id="modalTitle" class="text-lg font-bold mb-2 text-gray-800">Atenção</h3><p id="modalMsg" class="text-gray-600 mb-6 text-sm"></p><div class="flex justify-end gap-2"><button id="modalBtnCancel" onclick="closeModal()" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded text-sm transition">Cancelar</button><button id="modalBtnConfirm" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm shadow transition">Confirmar</button></div></div>
-    </div>
-
-    <script>
         function showModal(m,c,a=false){const md=document.getElementById('customModal');document.getElementById('modalMsg').innerText=m;const bc=document.getElementById('modalBtnConfirm');const bn=document.getElementById('modalBtnCancel');const nb=bc.cloneNode(true);bc.parentNode.replaceChild(nb,bc);if(a){bn.classList.add('hidden');nb.innerText='OK';nb.onclick=closeModal;}else{bn.classList.remove('hidden');nb.innerText='Confirmar';nb.onclick=()=>{if(c)c();closeModal();};}md.classList.remove('hidden');}
         function closeModal(){document.getElementById('customModal').classList.add('hidden');}
         const uiAlert=(m)=>showModal(m,null,true); const uiConfirm=(m,c)=>showModal(m,c,false);
@@ -544,7 +163,7 @@
             if(!nomeInstancia) return null;
             let foundBase = amb.find(a => a.tipo === nomeInstancia);
             if (foundBase) return { obj: foundBase, isGeneric: foundBase.qtd > 1 };
-            
+
             for (let a of amb) {
                 if (a.qtd > 1) {
                     if (a.nomes && a.nomes.includes(nomeInstancia)) {
@@ -667,7 +286,7 @@
             const diasDefs=[0,1,2,3,4];
             const header = `<div class="font-bold self-center text-gray-400">T/D</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div>`;
             let profHtml = header; let turmaHtml = header;
-            
+
             TURNOS.forEach(t=>{
                 profHtml += `<div class='font-bold self-center'>${t.id}</div>`;
                 turmaHtml += `<div class='font-bold self-center'>${t.id}</div>`;
@@ -685,7 +304,7 @@
             document.getElementById('gridTurnosTurma').innerHTML = turmaHtml;
         }
 
-        function init(){ 
+        function init(){
             renderGridsInit();
             carregarPesosRestricoes();
             aplicarPesosNaUI();
@@ -693,7 +312,7 @@
             disc=JSON.parse(localStorage.getItem('sge_disciplinas') || '[]');
             tur=JSON.parse(localStorage.getItem('sge_turmas') || '[]');
             prof=JSON.parse(localStorage.getItem('sge_professores') || '[]');
-            
+
             NUM_AULAS = parseInt(localStorage.getItem('sge_config_aulas')) || 4;
             HORARIOS = Array.from({length: NUM_AULAS}, (_, i) => i + 1);
             document.getElementById('cfgAulas').value = NUM_AULAS;
@@ -781,7 +400,7 @@
             });
 
             disc.forEach(d=>{
-                if(typeof d.amb === 'string') d.amb = d.amb ? [d.amb] : []; 
+                if(typeof d.amb === 'string') d.amb = d.amb ? [d.amb] : [];
                 if(!d.amb) d.amb = [];
                 if(d.splits === undefined) d.splits = 0;
             });
@@ -810,13 +429,13 @@
 
                 if(!Array.isArray(t.slotsAtivos)) t.slotsAtivos = todosTurnosTurmaIds();
                 normalizarTurnosTurma(t);
-                if(!t.professores) t.professores={}; 
+                if(!t.professores) t.professores={};
                 else {
                     Object.keys(t.professores).forEach(k => {
                         t.professores[k] = t.professores[k].split(',').filter(Boolean).join(',');
                     });
                 }
-                
+
                 t.disciplinas.forEach(dn => {
                     if (t.professores[dn] === undefined) {
                         const aptos = prof.filter(p=>p.disciplinas.includes(dn));
@@ -830,7 +449,7 @@
                     const trId = k.replace(/[0-9]/g, '');
                     const hr = parseInt(k.replace(/[^0-9]/g, ''));
                     if(v && !v.includes('&') && v.split('|').length===2){
-                        const parts=v.split('|'); const p=parts[0].split(',').filter(Boolean).join(','); const dn=parts[1]; 
+                        const parts=v.split('|'); const p=parts[0].split(',').filter(Boolean).join(','); const dn=parts[1];
                         const dObj=disc.find(x=>x.nome===dn);
                         const aDef = (dObj&&dObj.amb&&dObj.amb.length) ? dObj.amb.join('+') : '';
                         const salaResolvida = resolverAmbientesParaAlocacao(aDef, d, trId, hr, t.id, -1);
@@ -848,7 +467,7 @@
             });
             if(salvarAoFinal) salvar(false);
         }
-        
+
         function autoPreencherBuracosLivresNaGrade(){
             // Desativado do ciclo automático do UI para evitar que reescreva decisões manuais.
             return 0;
@@ -878,7 +497,7 @@
             if(!t||amb.some(a=>a.tipo===t))return uiAlert("Inválido ou Duplicado.");
             const cap = parseInt(document.getElementById('inputAmbCap').value)||40;
             const qtd = parseInt(document.getElementById('inputAmbQtd').value)||1;
-            
+
             let nomes = [];
             if(qtd > 1) {
                 const nStr = document.getElementById('inputAmbNomes').value;
@@ -886,7 +505,7 @@
                 while(nomes.length < qtd) nomes.push(`${t} ${nomes.length+1}`);
                 nomes = nomes.slice(0, qtd);
             }
-            
+
             amb.push({tipo:t, cap:cap, qtd:qtd, nomes:nomes});
             document.getElementById('inputAmbTipo').value='';
             document.getElementById('inputAmbQtd').value='1';
@@ -895,10 +514,10 @@
             salvar();renderAll();
         }
         function removerAmbiente(t){uiConfirm(`Remover ${t}?`,()=>{amb=amb.filter(a=>a.tipo!==t);salvar();renderAll();});}
-        
+
         function renderAmb(){
-            document.getElementById('listaAmbientes').innerHTML=amb.map(a=>`<span class="bg-yellow-100 px-2 py-1 rounded text-xs border border-yellow-200 cursor-default">${a.tipo} (Cap:${a.cap}|Qtd:${a.qtd})${a.qtd>1 && a.nomes && a.nomes.length ? ` [${a.nomes.join(', ')}]`:''} <i onclick="removerAmbiente('${a.tipo}')" class="fas fa-times cursor-pointer"></i></span>`).join(''); 
-            
+            document.getElementById('listaAmbientes').innerHTML=amb.map(a=>`<span class="bg-yellow-100 px-2 py-1 rounded text-xs border border-yellow-200 cursor-default">${a.tipo} (Cap:${a.cap}|Qtd:${a.qtd})${a.qtd>1 && a.nomes && a.nomes.length ? ` [${a.nomes.join(', ')}]`:''} <i onclick="removerAmbiente('${a.tipo}')" class="fas fa-times cursor-pointer"></i></span>`).join('');
+
             const checkHtml = listarOpcoesAmbientes({ incluirGrupos:true }).map(o => {
                 const ehGrupo = amb.some(a => a.tipo === o.value && a.qtd > 1);
                 return `<label class="flex items-center space-x-1 hover:bg-gray-100 p-1 rounded ${ehGrupo?'font-bold text-gray-700':'text-gray-600'}"><input type="checkbox" name="discAmbCheck" value="${escapeHtml(o.value)}" class="accent-yellow-600"><span>${escapeHtml(o.label)}</span></label>`;
@@ -915,7 +534,7 @@
 
             if(editDiscNomeOriginal) {
                 if(n !== editDiscNomeOriginal && disc.some(d=>d.nome===n)) return uiAlert("Já existe outra disciplina com este nome.");
-                
+
                 const oldName = editDiscNomeOriginal;
                 const dObj = disc.find(d => d.nome === oldName);
                 if(dObj) {
@@ -972,7 +591,7 @@
             document.getElementById('inputDisc').value = d.nome;
             document.getElementById('inputDiscCarga').value = d.carga || 2;
             document.getElementById('inputDiscSplits').value = d.splits || 0;
-            
+
             document.querySelectorAll('input[name="discAmbCheck"]').forEach(cb => {
                 cb.checked = d.amb && d.amb.includes(cb.value);
             });
@@ -989,7 +608,7 @@
             document.getElementById('inputDiscCarga').value = '';
             document.getElementById('inputDiscSplits').value = '';
             document.querySelectorAll('input[name="discAmbCheck"]').forEach(cb => cb.checked = false);
-            
+
             const btnSalvar = document.getElementById('btnSalvarDisc');
             if(btnSalvar) btnSalvar.innerHTML = '<i class="fas fa-plus"></i>';
             const btnCancel = document.getElementById('btnCancelEditDisc');
@@ -997,17 +616,17 @@
         }
 
         function removerDisciplina(n){uiConfirm("Remover?",()=>{disc=disc.filter(d=>d.nome!==n);salvar();renderAll();});}
-        
+
         function renderDisc(){
             disc.sort((a,b)=>a.nome.localeCompare(b.nome));
-            
+
             document.getElementById('tagsDisciplinas').innerHTML=disc.map(d=>{
                 let ambsFormatados = (d.amb||[]).join(' + ');
                 return `<span class="bg-purple-100 px-2 py-1 rounded text-xs border border-purple-200">${d.nome} (${d.carga}h | ${d.splits?d.splits+' bloco(s)':'Auto'} | ${ambsFormatados||'-'}) <i onclick="editarDisciplina('${d.nome}')" class="fas fa-edit cursor-pointer text-blue-500 ml-1" title="Editar"></i> <i onclick="removerDisciplina('${d.nome}')" class="fas fa-times cursor-pointer text-red-500 ml-1" title="Excluir"></i></span>`;
             }).join('');
 
             document.getElementById('checkProfDisc').innerHTML=disc.map(d=>`<label class="flex items-center space-x-1 hover:bg-gray-100 p-1 rounded"><input type="checkbox" name="profDiscCheck" value="${d.nome}" class="accent-indigo-600"><span>${d.nome}</span></label>`).join('');
-            
+
             document.getElementById('checkTurmaDisc').innerHTML=disc.map(d=>{
                 const temProf = prof.some(p=>p.disciplinas.includes(d.nome));
                 return `<label class="flex items-center space-x-1 hover:bg-gray-100 p-1 rounded ${temProf?'':'text-red-500 font-bold'}" ${temProf?'':'title="Nenhum professor leciona esta disciplina"'}><input type="checkbox" name="turmaDiscCheck" value="${d.nome}" class="accent-indigo-600"><span>${d.nome}</span></label>`;
@@ -1081,7 +700,7 @@
             DIAS.forEach((dayName,d)=>TURNOS.forEach(t=>{HORARIOS.forEach(h=>{const el=document.getElementById(`cell-res-${d}-${t.id}-${h}`);if(el){const s=parseInt(el.dataset.state);if(s===1)r.push(`${d}-${t.id}-${h}`);if(s===2)e.push(`${d}-${t.id}-${h}`)}})}))
             const sr = document.getElementById('chkProfSemRestricao').checked;
             const o={id:id?id:genId(),nome:n,disciplinas:ds,restricoes:r,evitar:e,semRestricao:sr};
-            
+
             if(id){
                 const i=prof.findIndex(x=>x.id==id);
                 if(i>-1) {
@@ -1190,7 +809,7 @@
             }));
             return { flex, ativos, bloqueados };
         }
-        
+
         function adicionarTurma(){
             const n=document.getElementById('inputTurma').value.trim();if(!n)return uiAlert("Nome obrigatório.");
             const d=Array.from(document.querySelectorAll('#checkTurmaDisc input[type="checkbox"]:checked')).map(c=>c.value);
@@ -1199,7 +818,7 @@
             const exigirTurnoDiario = document.getElementById('chkExigirTurnoDiario').checked;
             if(!d.length||!s.length)return uiAlert("Faltam dados.");
             if(!validarTurnoDiarioPossivel(s, exigirTurnoDiario)) return uiAlert("Para exigir 1 turno por dia, deixe pelo menos um turno liberado em cada dia.");
-            
+
             const id = document.getElementById('editTurmaId').value;
             if(id) {
                 const t = tur.find(x=>x.id===id);
@@ -1277,7 +896,7 @@
         }
 
         function removerTurma(id){uiConfirm("Apagar?",()=>{tur=tur.filter(t=>t.id!==id);invalidarUndo();salvar();renderTurList();});}
-        
+
         function vincularProfTurma(tid, dn, pid, checked) {
             const t = tur.find(x=>x.id===tid); if(!t) return;
             if(!t.professores) t.professores = {};
@@ -1285,7 +904,7 @@
                 t.professores[dn] = prof.filter(p=>p.disciplinas.includes(dn)).map(p=>p.id).join(',');
             }
             let atuais = t.professores[dn] ? t.professores[dn].split(',').filter(Boolean) : [];
-            if(checked) { if(!atuais.includes(String(pid))) atuais.push(String(pid)); } 
+            if(checked) { if(!atuais.includes(String(pid))) atuais.push(String(pid)); }
             else { atuais = atuais.filter(id => id !== String(pid)); }
             t.professores[dn] = normalizarListaPids(atuais.join(','));
             sincronizarProfessorAlocacoesDisciplina(t, dn);
@@ -1320,10 +939,10 @@
                         const isChecked = vinculados.includes(String(p.id)) ? 'checked' : '';
                         return `<label class="inline-flex items-center mr-2"><input type="checkbox" onchange="vincularProfTurma('${t.id}', '${dn}', '${p.id}', this.checked)" ${isChecked} class="mr-1 accent-green-600"> ${formatarNome(p.nome)}</label>`;
                     }).join('');
-                    
+
                     const vinculoAtual = (t.vinculos && t.vinculos[dn]) ? t.vinculos[dn] : '';
                     const selVinculo = `<label class="text-gray-500 ml-2">Vínculo:</label> <select onchange="vincularUCTurma('${t.id}', '${dn}', this.value)" class="text-[10px] border rounded bg-white"><option value="">--</option><option value="A" ${vinculoAtual==='A'?'selected':''}>A</option><option value="B" ${vinculoAtual==='B'?'selected':''}>B</option><option value="C" ${vinculoAtual==='C'?'selected':''}>C</option></select>`;
-                    
+
                     return `<div class="mt-1 ml-2 border-l-2 border-gray-300 pl-1"><span class="${colorClass} font-semibold">${dn}:</span> ${checks || '<span class="text-red-400">Sem prof apto</span>'} ${selVinculo}</div>`;
                 }).join('');
 
@@ -1360,7 +979,7 @@
                     const val = u.horario[d][k];
                     if(val) {
                         const inConflict = val.split('&').some((aloc, idx) => {
-                            if (u.id === tid && idx === selfIdx) return false; 
+                            if (u.id === tid && idx === selfIdx) return false;
                             return aloc.split('|')[0].split(',').filter(Boolean).includes(pid);
                         });
                         if(inConflict) return `Prof. ${p.nome} já alocado em ${u.id===tid ? 'paralelo' : u.nome}`;
@@ -1385,7 +1004,7 @@
             const me = tur.find(x=>x.id===tid);
             for(let ambTipo of tokensAmbiente(ambTipoStr)) {
                 const base = getBaseAmb(ambTipo);
-                if(!base) continue; 
+                if(!base) continue;
 
                 if(me && me.alunos > base.obj.cap) return `Bloqueio Físico: Turma com ${me.alunos} alunos não cabe em ${ambTipo} (Capacidade: ${base.obj.cap})`;
 
@@ -1408,19 +1027,19 @@
             invalidarUndo();
             const k = `${tCode}${h}`; const me = tur.find(x=>x.id===tid);
             let alocs = me.horario[d][k] ? me.horario[d][k].split('&') : [];
-            
+
             if(sel.value){
                 const parts = sel.value.split('|'); const pidStr = parts[0]; const dn = parts[1];
-                
+
                 const errP = verificarConflitoHard(pidStr, d, tCode, h, tid, idx);
                 if(errP){ uiAlert(errP); }
-                
+
                 const dObj = disc.find(x=>x.nome===dn);
                 const salaSolicitada = (dObj&&dObj.amb&&dObj.amb.length) ? dObj.amb.join('+') : '';
                 const salaDefault = resolverAmbientesParaAlocacao(salaSolicitada, d, tCode, h, tid, idx) || salaSolicitada;
                 const errS = verificarSala(salaDefault, d, tCode, h, tid, idx);
-                if(errS){ uiAlert(errS); } 
-                
+                if(errS){ uiAlert(errS); }
+
                 alocs[idx] = `${pidStr}|${dn}|${salaDefault}`;
             } else {
                 alocs.splice(idx, 1);
@@ -1489,7 +1108,7 @@
             let alocs = me.horario[d][k].split('&');
             if(!alocs[idx]) return false;
             const parts = alocs[idx].split('|'); const pidStr = parts[0]; const dn = parts[1];
-            
+
             const err = verificarSala(ns, d, tCode, h, tid, idx);
             if(err){ uiAlert("Conflito: "+err); }
 
@@ -1553,31 +1172,31 @@
             }));
 
             let missing = t.disciplinas.filter(dn => cnt[dn] < (disc.find(x => x.nome === dn)?.carga || 2));
-            
+
             if (missing.length === 0) {
                 let totalCarga = 0;
                 t.disciplinas.forEach(dn => totalCarga += (disc.find(x => x.nome === dn)?.carga || 2));
                 return `<div class="text-[8px] text-gray-400 mt-2 text-center italic font-semibold" title="Todas as disciplinas desta turma já atingiram a carga horária exigida.">Grade Completa (${totalCarga}h)</div>`;
-            } 
+            }
 
             let html = '<div class="text-[8px] text-gray-500 mt-2 text-left bg-gray-50 p-1 rounded border border-dashed border-gray-300 leading-tight"><b class="text-red-500">Motivos (Falta alocar):</b><br>';
-            
+
             missing.forEach(dn => {
                 const pids = t.professores && t.professores[dn] ? t.professores[dn].split(',').filter(Boolean) : [];
                 if (!pids.length) { html += `- <b class="text-gray-700">${dn}</b>: Sem prof<br>`; return; }
 
                 const dObj = disc.find(x=>x.nome===dn);
                 const salaDef = (dObj&&dObj.amb&&dObj.amb.length) ? dObj.amb.join('+') : '';
-                
+
                 const conflitoProf = verificarConflitoHard(pids.join(','), d, tCode, h, t.id, -1);
-                
+
                 let sIndisp = false;
                 if(!ignoreAmb && verificarSala(salaDef, d, tCode, h, t.id, -1)) sIndisp = true;
 
                 let r = [];
                 if(conflitoProf) r.push(conflitoProf);
                 if(sIndisp) r.push('Sala Indisp');
-                
+
                 if(r.length === 0) html += `- <b class="text-gray-700">${dn}</b>: <span class="text-green-600 font-bold">Livre!</span><br>`;
                 else html += `- <b class="text-gray-700">${dn}</b>: ${r.join(', ')}<br>`;
             });
@@ -1684,16 +1303,16 @@
             if(draggedSlot.type === 'slot') {
                 const {tid: tidOrig, d: dOrig, tr: trOrig, h: hOrig} = draggedSlot;
                 if(tidOrig === tidDest && dOrig === dDest && trOrig === trDest && hOrig === hDest) return;
-                
+
                 const tOrig = tur.find(x => x.id === tidOrig); const tDest = tur.find(x => x.id === tidDest);
                 if (!tOrig || !tDest) return;
-                
+
                 const kOrig = `${trOrig}${hOrig}`; const kDest = `${trDest}${hDest}`;
                 const valOrig = tOrig.horario[dOrig][kOrig]; const valDest = tDest.horario[dDest][kDest];
-                
-                tOrig.horario[dOrig][kOrig] = valDest; 
+
+                tOrig.horario[dOrig][kOrig] = valDest;
                 tDest.horario[dDest][kDest] = valOrig;
-                
+
                 invalidarUndo(); salvar();
             }
         }
@@ -1718,7 +1337,7 @@
         }
 
         let expandedGrades = new Set();
-        
+
         function toggleTurmaAuto(id) {
             if(turmasSelecionadasAuto.has(id)) turmasSelecionadasAuto.delete(id);
             else turmasSelecionadasAuto.add(id);
@@ -1735,7 +1354,7 @@
             else expandedGrades.add(id);
             renderGrades();
         }
-        
+
         function toggleAllGrades() {
             const isAnyCollapsed = tur.some(t => !expandedGrades.has(t.id));
             if (isAnyCollapsed) {
@@ -1793,8 +1412,8 @@
                         DIAS.forEach((dayName, dx) => {
                             const k = `${tr.id}${hr}`;
                             let cellHTML = '-';
-                            let isRestrito = px.restricoes && px.restricoes.includes(`${dx}-${tr.id}-${hr}`);
-                            let isEvitar = px.evitar && px.evitar.includes(`${dx}-${tr.id}-${hr}`);
+                            let isRestrito = px.restricoes && px.restricoes.includes(`${dx}-${tr.id}`);
+                            let isEvitar = px.evitar && px.evitar.includes(`${dx}-${tr.id}`);
 
                             let alocacoes = [];
                             tur.forEach(t => {
@@ -1903,13 +1522,13 @@
                         if(!t.slotsAtivos.includes(`${dx}-${tr.id}`)){h+=`<td class="border bg-gray-200"></td>`;return;}
                         const k=`${tr.id}${hr}`; const val=t.horario[dx][k];
                         const alocacoes = val ? val.split('&') : [];
-                        
+
                         let cellHTML = '';
                         for(let idx = 0; idx <= alocacoes.length; idx++) {
                             const aloc = alocacoes[idx];
                             const parts = aloc ? aloc.split('|') : [null, null, null];
                             const pid = parts[0], dn = parts[1], sl = parts[2];
-                            
+
                             let op='<option value="">--</option>';
                             t.disciplinas.forEach(dnome=>{
                                 let pidsVinculados = t.professores && t.professores[dnome] ? t.professores[dnome].split(',').filter(Boolean).join(',') : '';
@@ -1935,18 +1554,18 @@
                                     op+=`</optgroup>`;
                                 }
                             });
-                            
+
                             let selS='';
                             if(aloc){
                                 let opsSala=`<option value="" ${!sl?'selected':''}>-- Sem ambiente --</option>` + listarOpcoesAmbientes({ incluirGrupos:true }).map(o=>`<option value="${escapeHtml(o.value)}" ${o.value===sl?'selected':''}>${escapeHtml(o.label)}</option>`).join('');
                                 if(sl&&sl.includes('+')) opsSala+=`<option value="${escapeHtml(sl)}" selected>${escapeHtml(sl)}</option>`;
                                 selS=`<div class="flex items-center gap-1 mt-0.5 ${ignoreAmb?'hidden':''}"><select data-current="${escapeHtml(sl||'')}" onchange="alterarSalaSlot('${t.id}',${dx},'${tr.id}',${hr},this,${idx})" class="env-select flex-1 min-w-0 bg-transparent text-[9px] text-gray-500 focus:ring-0 cursor-pointer text-center">${opsSala}</select><button type="button" onclick="abrirEditorAmbientesSlot('${t.id}',${dx},'${tr.id}',${hr},${idx})" class="text-[9px] text-yellow-700 hover:text-yellow-900 px-1" title="Selecionar um ou mais ambientes"><i class="fas fa-layer-group"></i></button></div>`;
                             }
-                            
+
                             const labelD = dn ? `<div class="font-bold text-[10px] text-indigo-700 uppercase text-center border-b border-blue-200 pb-0.5 mb-0.5 w-full truncate" title="${dn}">${dn}</div>` : '';
                             let wrapperClasses = idx > 0 ? 'border-t border-gray-300 mt-1 pt-1 ' : 'p-0.5 rounded transition-colors duration-200 ';
                             let allocTitle = '';
-                            
+
                             if(aloc) {
                                 const isOcupado = verificarConflitoProfessorOcupado(pid, dx, tr.id, hr, t.id, idx);
                                 const isRestrito = restricoesIgnoradas(pid, dx, tr.id, hr).length > 0;
@@ -1961,15 +1580,15 @@
                                 else if (isEvitar) { wrapperClasses += 'bg-yellow-200 border-l-4 border-yellow-500'; allocTitle = 'Professor prefere evitar este horário'; }
                                 else if (isExcedente) { wrapperClasses += 'bg-gray-200 border-l-4 border-gray-500'; allocTitle = `Excedeu limite de aulas (${cnt[dn]}/${cargaLim})`; }
                             }
-                            
+
                             const dragAllocAttrs = aloc ? ` draggable="true" ondragstart="handleAllocDragStart(event,'${t.id}',${dx},'${tr.id}',${hr},${idx})" ondragend="handleDragEnd(event)"` : '';
                             cellHTML += `<div class="${wrapperClasses} ${aloc?'cursor-move':''}" title="${allocTitle}"${dragAllocAttrs}>${labelD}<select onchange="atualizarHorario('${t.id}',${dx},'${tr.id}',${hr},this,${idx})" class="w-full bg-transparent border-none p-0 focus:ring-0 font-semibold text-center text-[10px]">${op}</select>${selS}</div>`;
                         }
-                        
+
                         if (!val) {
                             cellHTML += getMotivosBuraco(t, dx, tr.id, hr);
                         }
-                        
+
                         const cellBg = val ? 'bg-blue-50' : '';
                         h+=`<td class="border p-1 ${cellBg} align-middle cursor-move hover:shadow-inner transition-all" draggable="true" ondragstart="handleDragStart(event, '${t.id}', ${dx}, '${tr.id}', ${hr})" ondragend="handleDragEnd(event)" ondragover="handleDragOver(event)" ondragenter="this.classList.add('bg-blue-200','opacity-80')" ondragleave="this.classList.remove('bg-blue-200','opacity-80')" ondrop="this.classList.remove('bg-blue-200','opacity-80'); handleDrop(event, '${t.id}', ${dx}, '${tr.id}', ${hr})">${cellHTML}</td>`;
                     });
@@ -2129,10 +1748,10 @@
             });
             if(!ignoreAmb){
                 DIAS.forEach((dayName,d)=>TURNOS.forEach(tr=>HORARIOS.forEach(h=>{
-                    const k=`${tr.id}${h}`; 
+                    const k=`${tr.id}${h}`;
                     let usedSpecifics = [];
                     let turmasBySpecific = {};
-                    
+
                     tur.forEach(t=>{
                         if (!t.slotsAtivos.includes(`${d}-${tr.id}`)) return;
                         const val=t.horario[d][k];
@@ -2339,7 +1958,7 @@
             });
             // 2. Sobreposição de Salas
             DIAS.forEach((dayName,d)=>TURNOS.forEach(tr=>HORARIOS.forEach(h=>{
-                const k=`${tr.id}${h}`; 
+                const k=`${tr.id}${h}`;
                 let usedSpecifics = [];
                 lista.forEach(t=>{
                     if (!t.slotsAtivos.includes(`${d}-${tr.id}`)) return;
@@ -2392,7 +2011,7 @@
                             if(val1 && val2) {
                                 const d1 = val1.split('&')[0].split('|')[1];
                                 const d2 = val2.split('&')[0].split('|')[1];
-                                if(d1 === d2) pen += pesoRestricao('intervalo'); 
+                                if(d1 === d2) pen += pesoRestricao('intervalo');
                             }
                         }
                     });
@@ -2443,7 +2062,7 @@
                         const temM = turnosComAula.has('M');
                         const temT = turnosComAula.has('T');
                         const temN = turnosComAula.has('N');
-                        
+
                         const primeirosManha = HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS));
                         const ultimosNoite = HORARIOS.filter(h => h >= Math.max(1, NUM_AULAS - 1));
                         let temManhaInicial = primeirosManha.some(h => professorTemAulaHorario(lista, px.id, d, 'M', h, []));
@@ -2483,16 +2102,16 @@
                     }
                 }));
             }
-            
+
             let sorted = Array.from(pref.keys()).sort((a,b)=>pref.get(b)-pref.get(a));
-            
-            let all = []; 
+
+            let all = [];
             if (aObj.nomes && aObj.nomes.length === aObj.qtd) {
                 all = [...aObj.nomes];
             } else {
                 for(let i=1; i<=aObj.qtd; i++) all.push(`${genericType} ${i}`);
             }
-            
+
             all = all.filter(x => !sorted.includes(x));
             const candidates = [...sorted, ...all];
 
@@ -2738,7 +2357,7 @@
         }
 
         function iniciarGeracaoAutomatica(){
-            if(!tur.length) return uiAlert("Nenhuma turma cadastrada."); 
+            if(!tur.length) return uiAlert("Nenhuma turma cadastrada.");
             document.getElementById('autoGenModal').classList.remove('hidden');
         }
 
@@ -2747,7 +2366,7 @@
         function calcularPrioridadeReq(r, tmpTurmas) {
 			const t = tmpTurmas[r.ti];
 			let pesoDificuldade = 0;
-			
+
 			r.dns.forEach(dn => {
 				const pids = t.professores && t.professores[dn] ? t.professores[dn].split(',').filter(Boolean) : [];
 				pids.forEach(pid => {
@@ -2756,25 +2375,25 @@
 						// Peso 1: Restrições de horário do professor (+5 pontos por bloqueio, +3 por evitar)
 						pesoDificuldade += (p.restricoes ? p.restricoes.length : 0) * 5;
 						pesoDificuldade += (p.evitar ? p.evitar.length : 0) * 3;
-						
+
 						// Peso 2: Quantas turmas esse professor atende na escola toda?
 						const turmasGlobais = tmpTurmas.filter(tx => tx.professores && Object.values(tx.professores).some(v => v.includes(pid))).length;
 						pesoDificuldade += turmasGlobais * 3;
 					}
 				});
-				
+
 				// Peso 3: Quantidade de carga restante desta disciplina
 				pesoDificuldade += (r.missing[dn] || 0) * 8;
 			});
-			
+
 			// Retorna negativo para que o sort() coloque os MAIORES pesos primeiro (prioridade máxima)
 			return -pesoDificuldade;
 		}
 
         async function executarGeracaoAutomaticaLegado(manter){
             document.getElementById('autoGenModal').classList.add('hidden');
-            document.getElementById('loadingOverlay').classList.remove('hidden'); 
-            
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+
              // Impede a tela de apagar
             try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
 
@@ -2783,7 +2402,7 @@
             document.getElementById('btnUndo').classList.remove('hidden');
 
             await new Promise(r=>setTimeout(r,100));
-            
+
             const baselineTur = JSON.parse(JSON.stringify(tur));
             const baselinePenalties = calcularPenalidade(baselineTur);
             const baselineMissing = contarFaltas(baselineTur);
@@ -2813,14 +2432,14 @@
 
 				if(i%10===0) { document.getElementById('loadingStatus').innerText=`Simulação ${i+1}/${numIteracoes}...`; await new Promise(r=>setTimeout(r,0)); }
 
-                const tmp=JSON.parse(JSON.stringify(tur)); 
+                const tmp=JSON.parse(JSON.stringify(tur));
                 if(!manter) {
                     tmp.forEach(t=> {
                         if (turmasSelecionadasAuto.has(t.id)) DIAS.forEach((_,d)=>t.horario[d]={});
                     });
                 }
 
-                const reqs=[]; 
+                const reqs=[];
                 tmp.forEach((t,ti)=>{
                     if (!turmasSelecionadasAuto.has(t.id)) return;
                     const agrupado={};
@@ -2829,7 +2448,7 @@
                         const cTotal = dObj?.carga||2;
                         const splits = dObj?.splits||0;
                         const v = (t.vinculos&&t.vinculos[dn]) ? t.vinculos[dn] : `single_${dn}`;
-                        
+
                         let alocadas = 0;
                         if(manter) {
                             DIAS.forEach((_, dx) => Object.keys(t.horario[dx]).forEach(ky => {
@@ -2845,7 +2464,7 @@
                                 }
                             }));
                         }
-                        
+
                         let c = cTotal - alocadas;
 
                         if(c > 0) {
@@ -2865,9 +2484,9 @@
                     // Mistura prioridade com aleatoriedade para exploração estocástica
                     return (pA - pB) + (Math.random() - 0.5) * 1.5;
                 });
-                
+
                 for(let r of reqs){
-                    const t=tmp[r.ti]; 
+                    const t=tmp[r.ti];
                     let params = r.dns.map(dn=>{
                         const dObj=disc.find(x=>x.nome===dn);
                         let pids = t.professores && t.professores[dn] ? t.professores[dn].split(',').filter(Boolean).join(',') : '';
@@ -2877,10 +2496,10 @@
                         }
                         return {dn, pids, sala: (dObj&&dObj.amb&&dObj.amb.length)?dObj.amb.join('+'):'', missing: r.missing[dn]};
                     });
-                    
+
                     params = params.filter(p => p.pids);
-                    if (!params.length) continue; 
-                    
+                    if (!params.length) continue;
+
                     const planosBlocos = gerarPlanosBlocos(r.c, r.cTotal, r.splits);
 
                     for (const blocosOrdenados of planosBlocos) {
@@ -2889,13 +2508,13 @@
 
                         for (let b of blocosOrdenados) {
                             if(params.every(p => p.missing <= 0)) break;
-                            const slots=[]; 
+                            const slots=[];
                             DIAS.forEach((_,dx)=>TURNOS.forEach(tr=>{
                                 if(t.slotsAtivos.includes(`${dx}-${tr.id}`)){
                                     for(let h=1;h<=NUM_AULAS;h++) slots.push({d:dx,t:tr.id,h});
                                 }
                             }));
-                            slots.sort(()=>Math.random()-0.5); 
+                            slots.sort(()=>Math.random()-0.5);
 
                             const goodSlots = []; const softBadSlots = [];
                             for(let s of slots) {
@@ -2917,13 +2536,13 @@
                                     for(let s of orderedSlots) {
                                         let ok=true;
                                         let blockSalasResolved = [];
-                                        
+
                                         if(!ignoreAmb){
                                             let fSala=false;
                                             for(let i=0; i<paramsFallback.length; i++) {
                                                 let p = paramsFallback[i];
                                                 if(p.missing <= 0) { blockSalasResolved.push(''); continue; }
-                                                
+
                                                 let rArr = [];
                                                 for(let sl of p.sala.split('+')) {
                                                     const base = getBaseAmb(sl);
@@ -2941,7 +2560,7 @@
                                                                 if(v&&v.split('&').some(al=>al.split('|')[2]&&al.split('|')[2].split('+').includes(sl))) uso++;
                                                             }
                                                         });
-                                                        
+
                                                         if (base) {
                                                             if (base.isGeneric) {
                                                                 if (uso >= base.obj.qtd || t.alunos > base.obj.cap) { free=false; break; }
@@ -2949,9 +2568,9 @@
                                                                 if (uso >= 1 || t.alunos > base.obj.cap) { free=false; break; }
                                                             }
                                                         } else {
-                                                            if (uso >= 1) { free=false; break; } 
+                                                            if (uso >= 1) { free=false; break; }
                                                         }
-                                                        
+
                                                         if(!free) { fSala = true; break; }
                                                         rArr.push(sl);
                                                     }
@@ -2959,12 +2578,12 @@
                                                 if (fSala) { ok = false; break; }
                                                 blockSalasResolved.push(rArr.join('+'));
                                             }
-                                            if (!ok) continue; 
+                                            if (!ok) continue;
                                         } else {
                                             blockSalasResolved = paramsFallback.map(p => p.missing > 0 ? (resolverAmbientesParaAlocacao(p.sala, s.d, s.t, s.h, t.id, -1, 1, tmp) || p.sala) : '');
                                         }
 
-                                        const ky=`${s.t}${s.h}`; 
+                                        const ky=`${s.t}${s.h}`;
                                         let activeP = paramsFallback.filter(p => p.missing > 0);
                                         if(activeP.length > 0 && t.horario[s.d][ky]) ok=false;
                                         else {
@@ -3011,15 +2630,15 @@
                         }
                     }
                 }
-                
+
                 preencherBuracosLivres(tmp);
                 const currentPenalties = calcularPenalidade(tmp);
                 const currentMissing = contarFaltas(tmp);
                 const currentScore = (currentMissing * 1000000) + currentPenalties;
-                
-                if(currentScore < minScore) { 
-                    minScore = currentScore; 
-                    bestTur = tmp; 
+
+                if(currentScore < minScore) {
+                    minScore = currentScore;
+                    bestTur = tmp;
                     bestTurGlobal = tmp;
                     document.getElementById('loadingBest').innerText = `Melhor arranjo encontrado: ${currentMissing} faltas`; // Atualiza o melhor resultado encontrado a cada melhoria significativa (redução de faltas)
                     document.getElementById('btnDownloadCurrent').classList.remove('hidden');
@@ -3032,8 +2651,8 @@
                         }
                     }
                 }
-                
-                // PARADA RÁPIDA: Se as faltas zeraram, a grade já não tem avisos ou choques 
+
+                // PARADA RÁPIDA: Se as faltas zeraram, a grade já não tem avisos ou choques
                 // (pois o algoritmo base impede choques). Paramos aqui para poupar tempo.
                 if(currentMissing === 0) {
                     document.getElementById('loadingStatus').innerText = "Arranjo completo sem faltas encontrado! Finalizando...";
@@ -3041,19 +2660,19 @@
                 }
             }
 
-            
+
             if(bestTur) {
                 preencherBuracosLivres(bestTur);
                 tur = bestTur;
             }
-            salvar(); 
+            salvar();
             document.getElementById('loadingOverlay').classList.add('hidden');
 
              // Libera a tela para voltar a apagar normalmente
             if (wakeLock) { wakeLock.release().then(() => wakeLock = null); }
 
             const rel = gerarRelatorio();
-            if(rel.erros.length > 0 || rel.avisos.length > 0) abrirRelatorio(); 
+            if(rel.erros.length > 0 || rel.avisos.length > 0) abrirRelatorio();
         }
 
         // FIX #1: verificarConflitoHardInterno corrigida — professor null é pulado, não bloqueia
@@ -3195,7 +2814,7 @@
             for(const pid of pidsFromStr(pidStr)) {
                 const p = prof.find(x=>x.id==pid);
                 if(!p) continue;
-                if(p.restricoes && p.restricoes.includes(`${d}-${tCode}-${h}`)) return false;
+                if(p.restricoes && p.restricoes.includes(`${d}-${tCode}`)) return false;
                 if(professorTemSlotIndexado(idx, pid, d, tCode, h)) return false;
             }
             return true;
@@ -3299,7 +2918,7 @@
 
         function pontuarSlotIndexado(t, params, idx, s, b, tentativa, rodada) {
             let score = 0;
-            if(params.some(p => temEvitar(p.pids, s.d, s.t, s.h))) score += pesoRestricao('evitar') * 10;
+            if(params.some(p => temEvitar(p.pids, s.d, s.t))) score += pesoRestricao('evitar') * 10;
             if(tentativa.softBad) score += Math.max(pesoRestricao('manhaNoiteMesmoDia'), pesoRestricao('tresTurnos')) / 2;
             if(b === 1 && params.some(p => !p.splits && p.carga > 2 && p.missing > 1)) score += pesoRestricao('fragmentacaoBlocos') * 1.5;
             const ocupSala = idx.salaSlot.get(chaveSlotIndexado(s.d, s.t, s.h));
@@ -3694,8 +3313,8 @@
                 const profs = t.professores ? Object.entries(t.professores).map(([k,v])=>{
                     const nomes = v.split(',').filter(Boolean).map(id=>prof.find(p=>p.id==id)?.nome).filter(Boolean).join(',');
                     return `${k}:${nomes}`;
-                }).join('=') : ''; 
-                const vincs = t.vinculos ? Object.entries(t.vinculos).map(([k,v])=>`${k}:${v}`).join('=') : ''; 
+                }).join('=') : '';
+                const vincs = t.vinculos ? Object.entries(t.vinculos).map(([k,v])=>`${k}:${v}`).join('=') : '';
                 cric+=`TURMA§${t.nome}§${t.curso}§${t.disciplinas.join('|')}§${t.slotsAtivos.join('|')}§${t.alunos}§${profs}§${vincs}\n`
             });
             lista.forEach(t=>{DIAS.forEach((dayName,d)=>{Object.keys(t.horario[d]).forEach(k=>{
@@ -3827,7 +3446,7 @@
                     const pnStr = parts[0] || '';
                     const dn = parts[1] ? parts[1].trim() : '';
                     const sl = parts[2] !== undefined ? parts[2].trim() : '';
-                    
+
                     const pidStr = pnStr.split('+').map(n => mp[norm(n)] || prof.find(x => norm(x.nome) === norm(n))?.id || '').filter(Boolean).join(',');
 
                     // Alterado para preservar o slot na disciplina mesmo se o professor vier vazio ou não for encontrado
@@ -3859,7 +3478,7 @@
         function importarCRIC(i){
             const f=i.files[0];if(!f)return;
             const rd=new FileReader();
-            rd.onload=e=>{ 
+            rd.onload=e=>{
                 const txt = e.target.result;
                 uiConfirm("Importar dados locais? Os dados atuais serão substituídos.",()=>{
                     executarProcessamentoCRIC(txt);
@@ -3878,12 +3497,12 @@
                     const response = await fetch("https://script.google.com/macros/s/AKfycbwOE0oeB738XSWvM7Exe4rmkIvnOtqbqU5CmTu0SKM2NMeYrDH2JZXhE_AWzVS1gGuC/exec");
                     if (!response.ok) throw new Error("Falha na rede");
                     const text = await response.text();
-                    
+
                     // Trava de segurança contra retornos de erro em HTML do Google Script
                     if (text.trim().toLowerCase().startsWith("<!doctype html") || text.includes("<html")) {
                         throw new Error("O Google Script retornou uma página de erro.");
                     }
-                    
+
                     document.getElementById('loadingOverlay').classList.add('hidden');
                     executarProcessamentoCRIC(text);
                 } catch (err) {
@@ -3892,7 +3511,7 @@
                 }
             });
         }
-        
+
         function imprimirRelatorio(tipo) {
             const p=document.getElementById('printArea'); p.innerHTML='';
             const header = () => `<thead><tr><th class="border" style="width: 4%;">T</th><th class="border" style="width: 4%;">H</th>${DIAS.map(d=>`<th class="border" style="width: 18.4%;">${d}</th>`).join('')}</tr></thead>`;
@@ -3949,7 +3568,7 @@
         document.body.addEventListener('dragover', e => { e.preventDefault(); document.body.style.opacity = '0.7'; });
         document.body.addEventListener('dragleave', e => { e.preventDefault(); document.body.style.opacity = '1'; });
         document.body.addEventListener('drop', e => {
-            e.preventDefault(); 
+            e.preventDefault();
             document.body.style.opacity = '1';
             const f = e.dataTransfer.files[0];
             if(f && (f.name.endsWith('.cric') || f.name.endsWith('.csv'))) {
@@ -3962,6 +3581,3 @@
         });
 
         init();
-    </script>
-</body>
-</html>
