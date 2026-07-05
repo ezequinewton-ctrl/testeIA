@@ -1,0 +1,14 @@
+const fs = require('fs');
+let code = fs.readFileSync('CHICri_testeIA.html', 'utf8');
+
+code = code.replace(
+    /function editarProfessor\(id\)\{const p=prof\.find\(x=>x\.id===id\);if\(\!p\)return;document\.getElementById\('inputProf'\)\.value=p\.nome;document\.getElementById\('editProfId'\)\.value=p\.id;document\.querySelectorAll\('#checkProfDisc input\[type="checkbox"\]'\)\.forEach\(c=>c\.checked=p\.disciplinas\.includes\(c\.value\)\);document\.getElementById\('chkProfSemRestricao'\)\.checked=!!p\.semRestricao;DIAS\.forEach\(\(dayName,d\)=>TURNOS\.forEach\(t=>setRestricaoState\(d,t\.id,0\)\)\);p\.restricoes\.forEach\(x=>\{const\[d,t\]=x\.split\('-'\);setRestricaoState\(d,t,1\)\}\);p\.evitar\.forEach\(x=>\{const\[d,t\]=x\.split\('-'\);setRestricaoState\(d,t,2\)\}\);document\.getElementById\('btnSalvarProf'\)\.innerText="Atualizar";document\.getElementById\('btnCancelEditProf'\)\.classList\.remove\('hidden'\);\}/,
+    `function editarProfessor(id){const p=prof.find(x=>x.id===id);if(!p)return;document.getElementById('inputProf').value=p.nome;document.getElementById('editProfId').value=p.id;document.querySelectorAll('#checkProfDisc input[type="checkbox"]').forEach(c=>c.checked=p.disciplinas.includes(c.value));document.getElementById('chkProfSemRestricao').checked=!!p.semRestricao;DIAS.forEach((dayName,d)=>TURNOS.forEach(t=>HORARIOS.forEach(h=>setRestricaoState(d,t.id,h,0))));p.restricoes.forEach(x=>{const[d,t,h]=x.split('-');setRestricaoState(d,t,h,1)});p.evitar.forEach(x=>{const[d,t,h]=x.split('-');setRestricaoState(d,t,h,2)});document.getElementById('btnSalvarProf').innerText="Atualizar";document.getElementById('btnCancelEditProf').classList.remove('hidden');}`
+);
+
+code = code.replace(
+    /function resetFormProf\(\)\{document\.getElementById\('inputProf'\)\.value='';document\.getElementById\('editProfId'\)\.value='';document\.getElementById\('chkProfSemRestricao'\)\.checked=false;document\.querySelectorAll\('#checkProfDisc input\[type="checkbox"\]'\)\.forEach\(c=>c\.checked=false\);DIAS\.forEach\(\(dayName,d\)=>TURNOS\.forEach\(t=>setRestricaoState\(d,t\.id,0\)\)\);document\.getElementById\('btnSalvarProf'\)\.innerText="Salvar";document\.getElementById\('btnCancelEditProf'\)\.classList\.add\('hidden'\);\}/,
+    `function resetFormProf(){document.getElementById('inputProf').value='';document.getElementById('editProfId').value='';document.getElementById('chkProfSemRestricao').checked=false;document.querySelectorAll('#checkProfDisc input[type="checkbox"]').forEach(c=>c.checked=false);DIAS.forEach((dayName,d)=>TURNOS.forEach(t=>HORARIOS.forEach(h=>setRestricaoState(d,t.id,h,0))));document.getElementById('btnSalvarProf').innerText="Salvar";document.getElementById('btnCancelEditProf').classList.add('hidden');}`
+);
+
+fs.writeFileSync('CHICri_testeIA.html', code);
