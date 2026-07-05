@@ -2124,7 +2124,7 @@
                     usoTurnos.diasSemAula.forEach(dia => rel.erros.push(`<b>${t.nome}:</b> precisa ter pelo menos 1 turno em ${DIAS[dia]}.`));
                 }
                 if(t.turnosFlexiveis !== false) {
-                    usoTurnos.turnosIncompletos.forEach(slot => rel.avisos.push(`<b>${t.nome}:</b> ${DIAS[slot.d]} ${slot.t} ficou incompleto (${slot.aulas}/${NUM_AULAS} aulas).`));
+                    // Warning "ficou incompleto" was removed as requested.
                 }
             });
             if(!ignoreAmb){
@@ -2205,6 +2205,7 @@
             return false;
         }
 
+
         function violariaTresTurnos(pid, d, tCode, lista, extras=[]) {
             // Avoid M and N on the same day ONLY if early M and late N
             const primeirosManha = HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS));
@@ -2214,17 +2215,18 @@
             let temNoiteFinal = false;
 
             // Check M
-            if (tCode === 'M' && primeirosManha.includes(extras.length ? extras[0].h : 1)) temManhaInicial = true;
+            if (tCode === 'M' && extras.some(e => e.t === 'M' && primeirosManha.includes(e.h))) temManhaInicial = true;
             else temManhaInicial = primeirosManha.some(h => professorTemAulaHorario(lista, pid, d, 'M', h, extras));
 
             // Check N
-            if (tCode === 'N' && ultimosNoite.includes(extras.length ? extras[0].h : 1)) temNoiteFinal = true;
+            if (tCode === 'N' && extras.some(e => e.t === 'N' && ultimosNoite.includes(e.h))) temNoiteFinal = true;
             else temNoiteFinal = ultimosNoite.some(h => professorTemAulaHorario(lista, pid, d, 'N', h, extras));
 
             return temManhaInicial && temNoiteFinal;
         }
 
         function violariaNoiteManha(pid, lista, extras=[]) {
+            // Updated to only avoid the last two hours of the night and the first two hours of the morning for sequential days
             const ultimosNoite = HORARIOS.filter(h => h >= Math.max(1, NUM_AULAS - 1));
             const primeirosManha = HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS));
             for(let d=0; d<DIAS.length-1; d++) {
@@ -3143,16 +3145,17 @@
             let temManhaInicial = false;
             let temNoiteFinal = false;
 
-            if (tCode === 'M' && primeirosManha.includes(extras.length ? extras[0].h : 1)) temManhaInicial = true;
+            if (tCode === 'M' && extras.some(e => e.t === 'M' && primeirosManha.includes(e.h))) temManhaInicial = true;
             else temManhaInicial = primeirosManha.some(h => professorTemSlotIndexado(idx, pid, d, 'M', h, extras));
 
-            if (tCode === 'N' && ultimosNoite.includes(extras.length ? extras[0].h : 1)) temNoiteFinal = true;
+            if (tCode === 'N' && extras.some(e => e.t === 'N' && ultimosNoite.includes(e.h))) temNoiteFinal = true;
             else temNoiteFinal = ultimosNoite.some(h => professorTemSlotIndexado(idx, pid, d, 'N', h, extras));
 
             return temManhaInicial && temNoiteFinal;
         }
 
         function violariaNoiteManhaIndexado(pid, idx, extras=[]) {
+            // Updated to only avoid the last two hours of the night and the first two hours of the morning for sequential days
             const ultimosNoite = HORARIOS.filter(h => h >= Math.max(1, NUM_AULAS - 1));
             const primeirosManha = HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS));
             for(let d=0; d<DIAS.length-1; d++) {
