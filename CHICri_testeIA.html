@@ -849,10 +849,7 @@
             if(salvarAoFinal) salvar(false);
         }
         
-        function autoPreencherBuracosLivresNaGrade(){
-            // Desativado do ciclo automático do UI para evitar que reescreva decisões manuais.
-            return 0;
-        }
+
 
         function salvar(r=true){
             localStorage.setItem('sge_ambientes',JSON.stringify(amb));localStorage.setItem('sge_disciplinas',JSON.stringify(disc));localStorage.setItem('sge_turmas',JSON.stringify(tur));localStorage.setItem('sge_professores',JSON.stringify(prof));
@@ -2317,7 +2314,7 @@
         }
 
         // FIX #6: calcularPenalidade corrigida — não penaliza slots inativos no cálculo de estabilidade de sala
-        function calcularPenalidade(lista){
+        function calcularPenalidade(lista, idx=null){
             let pen=0;
             // 1. Aversão (Evitar) dos Professores
             lista.forEach(t=>{
@@ -2434,7 +2431,8 @@
                 DIAS.forEach((dayName,d) => {
                     const turnosComAula = new Set();
                     TURNOS.forEach(tr => {
-                        if(professorTemAulaTurno(lista, px.id, d, tr.id)) {
+                        const temAulaTurno = idx ? professorTemTurnoIndexado(idx, px.id, d, tr.id) : professorTemAulaTurno(lista, px.id, d, tr.id);
+                        if(temAulaTurno) {
                             diasComAula.add(d);
                             turnosComAula.add(tr.id);
                         }
@@ -2446,8 +2444,8 @@
                         
                         const primeirosManha = HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS));
                         const ultimosNoite = HORARIOS.filter(h => h >= Math.max(1, NUM_AULAS - 1));
-                        let temManhaInicial = primeirosManha.some(h => professorTemAulaHorario(lista, px.id, d, 'M', h, []));
-                        let temNoiteFinal = ultimosNoite.some(h => professorTemAulaHorario(lista, px.id, d, 'N', h, []));
+                        let temManhaInicial = primeirosManha.some(h => idx ? professorTemSlotIndexado(idx, px.id, d, 'M', h, []) : professorTemAulaHorario(lista, px.id, d, 'M', h, []));
+                        let temNoiteFinal = ultimosNoite.some(h => idx ? professorTemSlotIndexado(idx, px.id, d, 'N', h, []) : professorTemAulaHorario(lista, px.id, d, 'N', h, []));
 
                         if (temM && temT && temN) pen += pesoRestricao('tresTurnos');
                         if (temManhaInicial && temNoiteFinal) pen += pesoRestricao('manhaNoiteMesmoDia');
@@ -2583,27 +2581,7 @@
             return { ok: true, salas: blockSalasResolved, softBad: regraProf.softBad };
         }
 
-        function contarOpcoesBloco(t, params, tmp, b) {
-            const slots=[];
-            DIAS.forEach((_,dx)=>TURNOS.forEach(tr=>{
-                if(t.slotsAtivos.includes(`${dx}-${tr.id}`)){
-                    for(let h=1;h<=NUM_AULAS;h++) slots.push({d:dx,t:tr.id,h});
-                }
-            }));
-            slots.sort(()=>Math.random()-0.5);
 
-            const goodSlots = []; const softBadSlots = [];
-            for(let s of slots) {
-                let ev = params.some(p => temEvitar(p.pids, s.d, s.t, s.h));
-                if(ev) softBadSlots.push(s); else goodSlots.push(s);
-            }
-            const orderedSlots = [...goodSlots, ...softBadSlots];
-            let count = 0;
-            for (const s of orderedSlots) {
-                if (avaliarBlocoEmSlot(t, params, tmp, s, b).ok) count++;
-            }
-            return count;
-        }
 
         function contarAlocadasTurma(t) {
             const cnt = {};
@@ -2657,85 +2635,7 @@
         }
 
         // Preenche, de forma determinística, células vazias que o diagnóstico marcaria como "Livre!".
-        function preencherBuracosLivres(lista) {
-            let total = 0;
-            let mudou = true;
-            let guard = 0;
 
-            while (mudou && guard++ < 500) {
-                mudou = false;
-
-                for (const t of lista) {
-                    if (!turmasSelecionadasAuto.has(t.id)) continue;
-                    const cnt = contarAlocadasTurma(t);
-
-                    for (let d=0; d<DIAS.length; d++) {
-                        for (const tr of TURNOS) {
-                            if(!t.slotsAtivos.includes(`${d}-${tr.id}`)) continue;
-
-                            for(let h=1; h<=NUM_AULAS; h++) {
-                                const ky = `${tr.id}${h}`;
-                                if(t.horario[d][ky]) continue;
-
-                                const candidatos = [];
-                                for (const dn of t.disciplinas) {
-                                    const carga = disc.find(x => x.nome === dn)?.carga || 2;
-                                    if ((cnt[dn] || 0) >= carga) continue;
-
-                                    const grupo = getGrupoVinculadoPendente(t, dn, cnt);
-                                    if (grupo[0] !== dn) continue;
-                                    const faltasGrupo = grupo.map(gdn => {
-                                        const c = disc.find(x => x.nome === gdn)?.carga || 2;
-                                        return c - (cnt[gdn] || 0);
-                                    });
-                                    if(faltasGrupo.some(f => f > 1)) continue;
-
-                                    const params = grupo.map(gdn => montarParamAlocacao(t, gdn, 1)).filter(Boolean);
-                                    if(params.length !== grupo.length) continue;
-
-                                    let tentativa = null;
-                                    if (lista === tur) {
-                                        const okProf = params.every(p => !verificarConflitoHard(p.pids, d, tr.id, h, t.id, -1));
-                                        const okSala = ignoreAmb || params.every(p => !verificarSala(p.sala, d, tr.id, h, t.id, -1));
-                                        const regraProf = avaliarRegrasProfessorBloco(params, lista, {d, t: tr.id, h}, 1);
-                                        if(!okProf || !okSala || !regraProf.ok) continue;
-                                        tentativa = { ok: true, salas: params.map(p => p.sala), softBad: regraProf.softBad };
-                                    } else {
-                                        tentativa = avaliarBlocoEmSlot(t, params, lista, {d, t: tr.id, h}, 1);
-                                        if(!tentativa.ok) continue;
-                                    }
-
-                                    const evita = params.some(p => temEvitar(p.pids, d, tr.id, h));
-                                    const maiorFalta = Math.max(...grupo.map(gdn => {
-                                        const c = disc.find(x => x.nome === gdn)?.carga || 2;
-                                        return c - (cnt[gdn] || 0);
-                                    }));
-                                    candidatos.push({params, tentativa, evita, maiorFalta});
-                                }
-
-                                if(!candidatos.length) continue;
-
-                                candidatos.sort((a,b) =>
-                                    (a.evita === b.evita ? 0 : a.evita ? 1 : -1) ||
-                                    (b.maiorFalta - a.maiorFalta) ||
-                                    a.params[0].dn.localeCompare(b.params[0].dn)
-                                );
-
-                                const escolhido = candidatos[0];
-                                t.horario[d][ky] = escolhido.params.map((p, idx) =>
-                                    `${p.pids}|${p.dn}|${escolhido.tentativa.salas[idx]||p.sala}`
-                                ).join('&');
-                                escolhido.params.forEach(p => cnt[p.dn] = (cnt[p.dn] || 0) + 1);
-                                total += escolhido.params.length;
-                                mudou = true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            return total;
-        }
 
         function iniciarGeracaoAutomatica(){
             if(!tur.length) return uiAlert("Nenhuma turma cadastrada."); 
@@ -2771,290 +2671,7 @@
 			return -pesoDificuldade;
 		}
 
-        async function executarGeracaoAutomaticaLegado(manter){
-            document.getElementById('autoGenModal').classList.add('hidden');
-            document.getElementById('loadingOverlay').classList.remove('hidden'); 
-            
-             // Impede a tela de apagar
-            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
 
-            turBackup = JSON.stringify(tur);
-            bestTurGlobal = null;
-            document.getElementById('btnUndo').classList.remove('hidden');
-
-            await new Promise(r=>setTimeout(r,100));
-            
-            const baselineTur = JSON.parse(JSON.stringify(tur));
-            const baselinePenalties = calcularPenalidade(baselineTur);
-            const baselineMissing = contarFaltas(baselineTur);
-            let bestTur = baselineTur;
-            let bestTurRodada = 0;
-            let minScore = (baselineMissing * 1000000) + baselinePenalties;
-
-			// NOVO: Captura o valor do input e do Auto-Download
-			const numIteracoes = parseInt(document.getElementById('inputIteracoes').value) || 600;
-            const enableAutoDownload = document.getElementById('chkAutoDownload') && document.getElementById('chkAutoDownload').checked;
-            const autoDownloadMin = parseInt(document.getElementById('inputAutoDownloadMin').value) || 15;
-            const startTimeMs = Date.now();
-
-			flagInterromper = false;
-			const btn = document.getElementById('btnPararGen');
-			btn.innerText = "Parar e usar a melhor distribuição até o momento";
-			btn.disabled = false;
-			btn.classList.remove('opacity-50', 'cursor-not-allowed');
-
-            document.getElementById('loadingBest').innerText = "";  //Acompanhar progresso do melhor resultado encontrado
-            document.getElementById('btnDownloadCurrent').classList.add('hidden');
-
-			for(let i=0; i < numIteracoes; i++){
-				// NOVO: Quebra o loop se o botão for clicado
-				if(flagInterromper) break;
-
-
-				if(i%10===0) { document.getElementById('loadingStatus').innerText=`Simulação ${i+1}/${numIteracoes}...`; await new Promise(r=>setTimeout(r,0)); }
-
-                const tmp=JSON.parse(JSON.stringify(tur)); 
-                if(!manter) {
-                    tmp.forEach(t=> {
-                        if (turmasSelecionadasAuto.has(t.id)) DIAS.forEach((_,d)=>t.horario[d]={});
-                    });
-                }
-
-                const reqs=[]; 
-                tmp.forEach((t,ti)=>{
-                    if (!turmasSelecionadasAuto.has(t.id)) return;
-                    const agrupado={};
-                    t.disciplinas.forEach(dn=>{
-                        const dObj = disc.find(x=>x.nome===dn);
-                        const cTotal = dObj?.carga||2;
-                        const splits = dObj?.splits||0;
-                        const v = (t.vinculos&&t.vinculos[dn]) ? t.vinculos[dn] : `single_${dn}`;
-                        
-                        let alocadas = 0;
-                        if(manter) {
-                            DIAS.forEach((_, dx) => Object.keys(t.horario[dx]).forEach(ky => {
-                                const trId = ky.replace(/[0-9]/g, '');
-                                const hId = parseInt(ky.replace(/[^0-9]/g, ''));
-                                if (hId <= NUM_AULAS && t.slotsAtivos.includes(`${dx}-${trId}`)) {
-                                    const val = t.horario[dx][ky];
-                                    if (val) {
-                                        val.split('&').forEach(aloc => {
-                                            if(aloc.split('|')[1] === dn) alocadas++;
-                                        });
-                                    }
-                                }
-                            }));
-                        }
-                        
-                        let c = cTotal - alocadas;
-
-                        if(c > 0) {
-                            if(!agrupado[v]) agrupado[v]={ti,dns:[],c:0,splits,cTotal,missing:{}};
-                            if(c > agrupado[v].c) agrupado[v].c = c;
-                            agrupado[v].dns.push(dn);
-                            agrupado[v].missing[dn] = c;
-                        }
-                    });
-                    Object.values(agrupado).forEach(g=>reqs.push(g));
-                });
-
-                // FIX #7: Ordena reqs por prioridade (disciplinas difíceis primeiro) com aleatoriedade parcial
-                reqs.sort((a, b) => {
-                    const pA = calcularPrioridadeReq(a, tmp);
-                    const pB = calcularPrioridadeReq(b, tmp);
-                    // Mistura prioridade com aleatoriedade para exploração estocástica
-                    return (pA - pB) + (Math.random() - 0.5) * 1.5;
-                });
-                
-                for(let r of reqs){
-                    const t=tmp[r.ti]; 
-                    let params = r.dns.map(dn=>{
-                        const dObj=disc.find(x=>x.nome===dn);
-                        let pids = t.professores && t.professores[dn] ? t.professores[dn].split(',').filter(Boolean).join(',') : '';
-                        if (!pids) {
-                            const aptos = prof.filter(p=>p.disciplinas.includes(dn));
-                            if (aptos.length > 0) pids = aptos.map(p=>p.id).join(',');
-                        }
-                        return {dn, pids, sala: (dObj&&dObj.amb&&dObj.amb.length)?dObj.amb.join('+'):'', missing: r.missing[dn]};
-                    });
-                    
-                    params = params.filter(p => p.pids);
-                    if (!params.length) continue; 
-                    
-                    const planosBlocos = gerarPlanosBlocos(r.c, r.cTotal, r.splits);
-
-                    for (const blocosOrdenados of planosBlocos) {
-                        const missingAntesPlano = params.reduce((acc,p)=>acc+p.missing,0);
-                        let planoInterrompido = false;
-
-                        for (let b of blocosOrdenados) {
-                            if(params.every(p => p.missing <= 0)) break;
-                            const slots=[]; 
-                            DIAS.forEach((_,dx)=>TURNOS.forEach(tr=>{
-                                if(t.slotsAtivos.includes(`${dx}-${tr.id}`)){
-                                    for(let h=1;h<=NUM_AULAS;h++) slots.push({d:dx,t:tr.id,h});
-                                }
-                            }));
-                            slots.sort(()=>Math.random()-0.5); 
-
-                            const goodSlots = []; const softBadSlots = [];
-                            for(let s of slots) {
-                                const tentativa = avaliarBlocoEmSlot(t, params, tmp, s, b);
-                                if(!tentativa.ok) continue;
-                                let ev = params.some(p => temEvitar(p.pids, s.d, s.t, s.h));
-                                const item = {...s, b, salas: tentativa.salas};
-                                if(ev || tentativa.softBad) softBadSlots.push(item); else goodSlots.push(item);
-                            }
-                            const orderedSlots = [...goodSlots, ...softBadSlots];
-                            const found = orderedSlots[0] || null;
-
-                            if(!found) {
-                                let remaining = b;
-                                // FIX #4: clona params.missing para não corromper entre iterações do fallback
-                                let paramsFallback = params.map(p => ({...p}));
-                                while(remaining > 0) {
-                                    let placed = false;
-                                    for(let s of orderedSlots) {
-                                        let ok=true;
-                                        let blockSalasResolved = [];
-                                        
-                                        if(!ignoreAmb){
-                                            let fSala=false;
-                                            for(let i=0; i<paramsFallback.length; i++) {
-                                                let p = paramsFallback[i];
-                                                if(p.missing <= 0) { blockSalasResolved.push(''); continue; }
-                                                
-                                                let rArr = [];
-                                                for(let sl of p.sala.split('+')) {
-                                                    const base = getBaseAmb(sl);
-                                                    if (base && base.isGeneric && base.obj.qtd > 1) {
-                                                        const inst = getAvailableInstanceForBlock(sl, s.d, s.t, s.h, 1, t.id, tmp);
-                                                        if (!inst) { fSala = true; break; }
-                                                        rArr.push(inst);
-                                                    } else {
-                                                        let free = true;
-                                                        let uso = 0;
-                                                        const ky=`${s.t}${s.h}`;
-                                                        tmp.forEach(ox=>{
-                                                            if(ox.id!==t.id && ox.slotsAtivos.includes(`${s.d}-${s.t}`)){
-                                                                const v=ox.horario[s.d][ky];
-                                                                if(v&&v.split('&').some(al=>al.split('|')[2]&&al.split('|')[2].split('+').includes(sl))) uso++;
-                                                            }
-                                                        });
-                                                        
-                                                        if (base) {
-                                                            if (base.isGeneric) {
-                                                                if (uso >= base.obj.qtd || t.alunos > base.obj.cap) { free=false; break; }
-                                                            } else {
-                                                                if (uso >= 1 || t.alunos > base.obj.cap) { free=false; break; }
-                                                            }
-                                                        } else {
-                                                            if (uso >= 1) { free=false; break; } 
-                                                        }
-                                                        
-                                                        if(!free) { fSala = true; break; }
-                                                        rArr.push(sl);
-                                                    }
-                                                }
-                                                if (fSala) { ok = false; break; }
-                                                blockSalasResolved.push(rArr.join('+'));
-                                            }
-                                            if (!ok) continue; 
-                                        } else {
-                                            blockSalasResolved = paramsFallback.map(p => p.missing > 0 ? (resolverAmbientesParaAlocacao(p.sala, s.d, s.t, s.h, t.id, -1, 1, tmp) || p.sala) : '');
-                                        }
-
-                                        const ky=`${s.t}${s.h}`; 
-                                        let activeP = paramsFallback.filter(p => p.missing > 0);
-                                        if(activeP.length > 0 && t.horario[s.d][ky]) ok=false;
-                                        else {
-                                            for(let p of activeP) {
-                                                if(verificarConflitoHardInterno(p.pids,s.d,s.t,s.h,t.id,tmp)){ok=false;break;}
-                                            }
-                                        }
-
-                                        if(ok) {
-                                            let allocs = [];
-                                            // FIX #4: usa paramsFallback com missing independente por disciplina
-                                            paramsFallback.forEach((p, idx) => {
-                                                if (p.missing > 0) {
-                                                    allocs.push(`${p.pids}|${p.dn}|${blockSalasResolved[idx]||p.sala}`);
-                                                    p.missing--;
-                                                }
-                                            });
-                                            if(allocs.length > 0) {
-                                                t.horario[s.d][`${s.t}${s.h}`] = allocs.join('&');
-                                            }
-                                            placed = true;
-                                            remaining--;
-                                            break;
-                                        }
-                                    }
-                                    if(!placed) {
-                                        break;
-                                    }
-                                }
-                            } else {
-                                for(let k=0;k<found.b;k++) {
-                                    let allocs = [];
-                                    params.forEach((p, idx) => {
-                                        if (p.missing > 0) {
-                                            allocs.push(`${p.pids}|${p.dn}|${found.salas[idx]||p.sala}`);
-                                            p.missing--;
-                                        }
-                                    });
-                                    if(allocs.length > 0) {
-                                        t.horario[found.d][`${found.t}${found.h+k}`] = allocs.join('&');
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                preencherBuracosLivres(tmp);
-                const currentPenalties = calcularPenalidade(tmp);
-                const currentMissing = contarFaltas(tmp);
-                const currentScore = (currentMissing * 1000000) + currentPenalties;
-                
-                if(currentScore < minScore) { 
-                    minScore = currentScore; 
-                    bestTur = tmp; 
-                    bestTurGlobal = tmp;
-                    document.getElementById('loadingBest').innerText = `Melhor arranjo encontrado: ${currentMissing} faltas`; // Atualiza o melhor resultado encontrado a cada melhoria significativa (redução de faltas)
-                    document.getElementById('btnDownloadCurrent').classList.remove('hidden');
-
-                    // ADICIONADO: Lógica de Auto Download
-                    if (enableAutoDownload) {
-                        const elapsedMin = (Date.now() - startTimeMs) / 60000;
-                        if (elapsedMin >= autoDownloadMin) {
-                            exportarCRIC(bestTurGlobal, true);
-                        }
-                    }
-                }
-                
-                // PARADA RÁPIDA: Se as faltas zeraram, a grade já não tem avisos ou choques 
-                // (pois o algoritmo base impede choques). Paramos aqui para poupar tempo.
-                if(currentMissing === 0) {
-                    document.getElementById('loadingStatus').innerText = "Arranjo completo sem faltas encontrado! Finalizando...";
-                    break;
-                }
-            }
-
-            
-            if(bestTur) {
-                preencherBuracosLivres(bestTur);
-                tur = bestTur;
-            }
-            salvar(); 
-            document.getElementById('loadingOverlay').classList.add('hidden');
-
-             // Libera a tela para voltar a apagar normalmente
-            if (wakeLock) { wakeLock.release().then(() => wakeLock = null); }
-
-            const rel = gerarRelatorio();
-            if(rel.erros.length > 0 || rel.avisos.length > 0) abrirRelatorio(); 
-        }
 
         // FIX #1: verificarConflitoHardInterno corrigida — professor null é pulado, não bloqueia
         // FIX #3: exclui a própria turma/slot do check (evita falso conflito com si mesmo)
@@ -3554,7 +3171,7 @@
                 const exec = executarPasseAlocacaoIndexada(tmp, rodada);
                 preencherBuracosLivresIndexado(tmp, exec.idx);
 
-                const currentPenalties = calcularPenalidade(tmp);
+                const currentPenalties = calcularPenalidade(tmp, exec.idx);
                 const currentMissing = contarFaltas(tmp);
                 const currentScore = (currentMissing * 1000000) + currentPenalties;
                 if(currentScore < minScore) {
@@ -3670,6 +3287,7 @@
         function exportarCRIC(lista = tur, isAutoBackup = false){
             let cric="TIPO§NOME§D1§D2§D3§D4§D5§D6\n";
             cric+=`CFG§PESOS§${encodeURIComponent(JSON.stringify(pesosRestricoes))}§§§§§\n`;
+            cric+=`CFG§AULAS§${NUM_AULAS}§§§§§\n`;
             lista.forEach(t=>{
                 normalizarTurnosTurma(t);
                 normalizarAmbientesAlocadosTurma(t, lista);
@@ -3703,7 +3321,7 @@
                 const hr = parseInt(k.replace(/[^0-9]/g, ''));
                 if (hr <= NUM_AULAS && t.slotsAtivos.includes(`${d}-${trId}`)) {
                     const val=t.horario[d][k];
-                    if(val){val.split('&').forEach(aloc=>{const parts=aloc.split('|');const p=parts[0];const dn=parts[1];const sl=parts[2];const prNs=p.split(',').filter(Boolean).map(id=>prof.find(x=>x.id==id)?.nome||'?').join('+');cric+=`ALOC§${t.nome}§${d}§${k[0]}§${k[1]}§${prNs}|${dn}|${sl}\n`;})}
+                    if(val){val.split('&').forEach(aloc=>{const parts=aloc.split('|');const p=parts[0];const dn=parts[1];const sl=parts[2];const prNs=p.split(',').filter(Boolean).map(id=>prof.find(x=>x.id==id)?.nome||'?').join('+');cric+=`ALOC§${t.nome}§${d}§${k[0]}§${k.slice(1)}§${prNs}|${dn}|${sl}\n`;})}
                 }
             })})});
             const b=new Blob([cric],{type:'text/cric'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;const dh=new Date().toLocaleString('pt-BR').replace(/[\/:]/g,'-').replace(', ','_');
@@ -3727,6 +3345,16 @@
 
             l.forEach(row => {
                 const c = row.split(sep).map(x => x ? x.trim() : '');
+                if (c[0] === 'CFG' && norm(c[1]) === 'AULAS' && c[2]) {
+                    const aulas = parseInt(c[2]);
+                    if (!isNaN(aulas) && aulas > 0) {
+                        NUM_AULAS = aulas;
+                        HORARIOS = Array.from({length: NUM_AULAS}, (_, i) => i + 1);
+                        localStorage.setItem('sge_config_aulas', NUM_AULAS);
+                        const cfgInp = document.getElementById('cfgAulas');
+                        if (cfgInp) cfgInp.value = NUM_AULAS;
+                    }
+                }
                 if (c[0] === 'CFG' && norm(c[1]) === 'PESOS' && c[2]) {
                     try {
                         pesosRestricoes = {...PESOS_PADRAO, ...JSON.parse(decodeURIComponent(c[2]))};
