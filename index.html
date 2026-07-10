@@ -103,11 +103,11 @@
                         <i class="fas fa-palette mr-1"></i> Legenda
                     </button>
                     <div class="absolute right-0 mt-0 w-56 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 p-3 text-xs text-gray-700">
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-4 border-l-red-600 inline-block mr-2"></span> Restrição (Bloqueio)</div>
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-4 border-l-yellow-500 inline-block mr-2"></span> Evitar Turno</div>
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-4 border-l-black inline-block mr-2"></span> Choque Prof (2 turmas)</div>
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-4 border-l-gray-500 inline-block mr-2"></span> Excesso de Carga</div>
-                        <div class="flex items-center"><span class="w-3 h-3 bg-white border border-gray-200 border-l-4 border-l-orange-600 inline-block mr-2"></span> Conflito de Sala</div>
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-[16px] border-l-red-600 inline-block mr-2"></span> Restrição (Bloqueio)</div>
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-[16px] border-l-yellow-500 inline-block mr-2"></span> Evitar Turno</div>
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-[16px] border-l-black inline-block mr-2"></span> Choque Prof (2 turmas)</div>
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-[16px] border-l-blue-600 inline-block mr-2"></span> Excesso de Carga</div>
+                        <div class="flex items-center"><span class="w-3 h-3 bg-white border border-gray-200 border-l-[16px] border-l-fuchsia-600 inline-block mr-2"></span> Conflito de Sala</div>
                     </div>
                 </div>
 
@@ -479,30 +479,43 @@
         let currentTab = 'turmas'; // Controle de abas
         let editDiscNomeOriginal = ''; // Controle de edição de disciplinas
         let flagInterromper = false;
-        const CORES_DISCIPLINAS = [
-            { bg:'#eef2ff', border:'#a5b4fc', text:'#3730a3' },
-            { bg:'#ecfeff', border:'#67e8f9', text:'#155e75' },
-            { bg:'#f0fdf4', border:'#86efac', text:'#166534' },
-            { bg:'#fff7ed', border:'#fdba74', text:'#9a3412' },
-            { bg:'#fdf2f8', border:'#f9a8d4', text:'#9d174d' },
-            { bg:'#f5f3ff', border:'#c4b5fd', text:'#5b21b6' },
-            { bg:'#fefce8', border:'#fde047', text:'#854d0e' },
-            { bg:'#ecfdf5', border:'#6ee7b7', text:'#047857' },
-            { bg:'#f8fafc', border:'#94a3b8', text:'#334155' },
-            { bg:'#eff6ff', border:'#93c5fd', text:'#1d4ed8' },
-            { bg:'#fff1f2', border:'#fda4af', text:'#be123c' },
-            { bg:'#f7fee7', border:'#bef264', text:'#4d7c0f' }
+                const CORES_DISCIPLINAS = [
+            { bg:'#eef2ff', border:'#a5b4fc', text:'#3730a3' }, // Indigo
+            { bg:'#ecfeff', border:'#67e8f9', text:'#155e75' }, // Cyan
+            { bg:'#f0fdf4', border:'#86efac', text:'#166534' }, // Green
+            { bg:'#fff7ed', border:'#fdba74', text:'#9a3412' }, // Orange
+            { bg:'#fdf2f8', border:'#f9a8d4', text:'#9d174d' }, // Pink
+            { bg:'#f5f3ff', border:'#c4b5fd', text:'#5b21b6' }, // Violet
+            { bg:'#fefce8', border:'#fde047', text:'#854d0e' }, // Yellow
+            { bg:'#ecfdf5', border:'#6ee7b7', text:'#047857' }, // Emerald
+            { bg:'#f8fafc', border:'#94a3b8', text:'#334155' }, // Slate
+            { bg:'#eff6ff', border:'#93c5fd', text:'#1d4ed8' }, // Blue
+            { bg:'#fff1f2', border:'#fda4af', text:'#be123c' }, // Rose
+            { bg:'#f7fee7', border:'#bef264', text:'#4d7c0f' }, // Lime
+            { bg:'#fffbeb', border:'#fcd34d', text:'#b45309' }, // Amber
+            { bg:'#f0f9ff', border:'#7dd3fc', text:'#0369a1' }, // Sky
+            { bg:'#ccfbf1', border:'#5eead4', text:'#0f766e' }, // Teal
+            { bg:'#fae8ff', border:'#f0abfc', text:'#a21caf' }, // Fuchsia
+            { bg:'#f3f4f6', border:'#d1d5db', text:'#374151' }, // Gray
+            { bg:'#fee2e2', border:'#fca5a5', text:'#b91c1c' }, // Red
+            { bg:'#faf5ff', border:'#d8b4fe', text:'#7e22ce' }, // Purple
+            { bg:'#ffe4e6', border:'#fecdd3', text:'#e11d48' }, // Rose 2
+            { bg:'#dcfce7', border:'#86efac', text:'#15803d' }, // Green 2
+            { bg:'#e0e7ff', border:'#a5b4fc', text:'#4338ca' }, // Indigo 2
+            { bg:'#fce7f3', border:'#fbcfe8', text:'#be185d' }, // Pink 2
+            { bg:'#ffedd5', border:'#fdba74', text:'#c2410c' }  // Orange 2
         ];
 
         function hashDisciplina(nome) {
             return String(nome || '').split('').reduce((acc, ch) => ((acc * 31) + ch.charCodeAt(0)) >>> 0, 7);
         }
 
-        function corDisciplina(nome) {
-            return CORES_DISCIPLINAS[hashDisciplina(nome) % CORES_DISCIPLINAS.length];
+                function corDisciplina(nome) {
+            let index = disc.findIndex(d => d.nome === nome);
+            if(index === -1) index = hashDisciplina(nome);
+            return CORES_DISCIPLINAS[index % CORES_DISCIPLINAS.length];
         }
-
-        // FIX: geração de ID mais robusta, evitando colisões em importações rápidas
+// FIX: geração de ID mais robusta, evitando colisões em importações rápidas
         const genId = () => Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,9);
 
 		function interromperGeracao() {
@@ -2006,11 +2019,11 @@
                                 const cargaLim = disc.find(x => x.nome === dn)?.carga || 2;
                                 const isExcedente = (cnt[dn] || 0) > cargaLim;
 
-                                if (isOcupado) { wrapperClasses += 'border-l-4 border-l-black'; allocTitle = isOcupado; }
-                                else if (isRestrito) { wrapperClasses += 'border-l-4 border-l-red-600'; allocTitle = 'Professor bloqueado neste horário'; }
-                                else if (isSalaErr) { wrapperClasses += 'border-l-4 border-l-orange-600'; allocTitle = isSalaErr; }
-                                else if (isEvitar) { wrapperClasses += 'border-l-4 border-l-yellow-500'; allocTitle = 'Professor prefere evitar este horário'; }
-                                else if (isExcedente) { wrapperClasses += 'border-l-4 border-l-gray-500'; allocTitle = `Excedeu limite de aulas (${cnt[dn]}/${cargaLim})`; }
+                                if (isOcupado) { wrapperClasses += 'border-l-[16px] border-l-black'; allocTitle = isOcupado; }
+                                else if (isRestrito) { wrapperClasses += 'border-l-[16px] border-l-red-600'; allocTitle = 'Professor bloqueado neste horário'; }
+                                else if (isSalaErr) { wrapperClasses += 'border-l-[16px] border-l-fuchsia-600'; allocTitle = isSalaErr; }
+                                else if (isEvitar) { wrapperClasses += 'border-l-[16px] border-l-yellow-500'; allocTitle = 'Professor prefere evitar este horário'; }
+                                else if (isExcedente) { wrapperClasses += 'border-l-[16px] border-l-blue-600'; allocTitle = `Excedeu limite de aulas (${cnt[dn]}/${cargaLim})`; }
                             }
                             
                             const dragAllocAttrs = aloc ? ` draggable="true" ondragstart="handleAllocDragStart(event,'${t.id}',${dx},'${tr.id}',${hr},${idx})" ondragend="handleDragEnd(event)"` : '';
