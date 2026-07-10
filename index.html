@@ -48,14 +48,14 @@
             </div>
             
             <div class="flex gap-2 items-center">
-                <div class="flex items-center bg-green-800 rounded px-2 py-1 border border-green-600 mr-2" title="Quantidade de aulas por turno">
+                <div class="flex items-center bg-green-800 rounded px-2 py-1 border border-green-600 mr-1" title="Quantidade de aulas por turno">
                     <i class="fas fa-clock mr-1 text-xs text-green-300"></i>
-                    <input type="number" id="cfgAulas" min="1" max="10" value="4" class="w-8 text-center text-xs bg-transparent text-white focus:outline-none font-bold" onchange="atualizarConfigAulas(this.value)">
+                    <input type="number" id="cfgAulas" min="1" max="10" value="4" class="w-6 text-center text-xs bg-transparent text-white focus:outline-none font-bold" onchange="atualizarConfigAulas(this.value)">
                 </div>
 
                 <div class="relative group">
                     <button class="text-xs bg-green-800 hover:bg-green-900 text-white py-1 px-3 rounded shadow transition font-bold border border-green-600 flex items-center mr-2">
-                        <i class="fas fa-sliders-h mr-1"></i> Pesos
+                        <i class="fas fa-sliders-h mr-1"></i>
                     </button>
                     <div class="absolute right-0 mt-0 w-80 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 p-3 text-xs text-gray-700">
                         <div class="font-bold text-gray-700 mb-2">Pesos das restrições globais</div>
@@ -115,10 +115,10 @@
                     <i class="fas fa-magic mr-1"></i> Auto
                 </button>
                                 <label class="text-xs bg-white/15 hover:bg-white/25 text-white py-1 px-3 rounded shadow transition font-bold flex items-center border border-white/30 cursor-pointer" title="Marcar/Desmarcar todas para Geracao Automatica e Impressao">
-                    <input type="checkbox" id="chkToggleAutoAll" class="mr-2 accent-purple-600" checked onchange="toggleAllAuto(this.checked)"> <i class="fas fa-magic mr-1"></i> 🖨️ Des/seleção turmas
+                    <input type="checkbox" id="chkToggleAutoAll" class="mr-2 accent-purple-600" checked onchange="toggleAllAuto(this.checked)"> <i class="fas fa-magic mr-1"></i> 🖨️ Seleção
                 </label>
                 <button onclick="toggleAllGrades()" id="btnToggleAll" class="text-xs bg-white/15 hover:bg-white/25 text-white py-1 px-3 rounded shadow transition font-bold flex items-center border border-white/30">
-                    <i class="fas fa-expand-alt mr-2"></i> Expandir Tudo
+                    <i class="fas fa-expand-alt mr-2"></i> Expandir
                 </button>
                 <button onclick="desfazerGeracao()" id="btnUndo" class="text-xs bg-gray-500 hover:bg-gray-600 text-white py-1 px-3 rounded shadow transition font-bold border border-gray-400 mr-2 hidden" title="Desfazer Última Geração Auto">
                     <i class="fas fa-undo"></i>
@@ -301,7 +301,7 @@
                         <input type="checkbox" id="chkToggleAutoAllView" class="mr-2 accent-purple-600" checked onchange="toggleAllAuto(this.checked)"> <i class="fas fa-magic mr-1"></i> Selecionar Todas
                     </label>
                     <button onclick="toggleAllGrades()" id="btnToggleAllView" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-3 rounded shadow transition font-bold flex items-center border border-gray-300">
-                        <i class="fas fa-expand-alt mr-2"></i> Expandir Tudo
+                        <i class="fas fa-expand-alt mr-2"></i> Expandir
                     </button>
                 </div>
                 <div id="containerGrades" class="space-y-8 pb-20"></div>
@@ -1929,7 +1929,7 @@
             const btn = document.getElementById('btnToggleAll');
             if(btn && tur.length > 0) {
                 const allExp = tur.every(t => expandedGrades.has(t.id));
-                btn.innerHTML = allExp ? '<i class="fas fa-compress-alt mr-2"></i> Recolher Tudo' : '<i class="fas fa-expand-alt mr-2"></i> Expandir Tudo';
+                btn.innerHTML = allExp ? '<i class="fas fa-compress-alt mr-2"></i> Recolher' : '<i class="fas fa-expand-alt mr-2"></i> Expandir';
             }
             const chkAllAuto = document.getElementById('chkToggleAutoAll');
             if(chkAllAuto) {
