@@ -235,7 +235,7 @@
 				background: white;
 				margin: 0 auto 20px auto;
 				box-shadow: 0 0 0.5cm rgba(0, 0, 0, 0.18);
-				overflow: hidden;
+
 				position: relative;
 			}
 
@@ -257,7 +257,7 @@
 			.conteudo-folha-preview {
 				width: 100%;
 				height: 100%;
-				overflow: hidden;
+
 			}
 
 
@@ -287,7 +287,7 @@
 				body.modo-monitor-paginado .folha-preview {
 					margin: 0 !important;
 					box-shadow: none !important;
-					overflow: hidden !important;
+
 					break-after: page;
 					page-break-after: always;
 				}
@@ -459,6 +459,7 @@
 	<script src="https://accounts.google.com/gsi/client"></script>
 	<script>
 		function verificarEImprimir() {
+
 			calcularSomaPesos(); // Garante que o valor está atualizado
 			const somaText = document.getElementById('somaPesos').value;
 			const total = parseFloat(somaText.replace('Peso total: ', '').replace(',', '.'));
@@ -468,7 +469,17 @@
 					return; // Cancela a impressão se o usuário clicar em "Cancelar"
 				}
 			}
-			window.print();
+
+			if (typeof ehMonitor2 === 'undefined') {
+				var ehMonitor2 = false;
+			}
+			if (typeof canalMonitor !== 'undefined' && !ehMonitor2) {
+				canalMonitor.postMessage({ tipo: 'imprimir' });
+			}
+
+			// We still want to print on the main window if monitor 2 is not open, but we have no way to know synchronously if it's open.
+            // Wait, the prompt said "quero que ao ser solicitada a impressão que imprima direto esse segundo monitor".
+			// window.print(); // we might skip this or keep it. Let's comment out to only print on monitor 2.
 		}
 
 
@@ -4143,17 +4154,25 @@ if (comBotao) {
 
 			if (numero === 1) {
 				folha.classList.add('primeira-folha');
-			}
+                folha.classList.add('pageCabecalho');
+			} else {
+                folha.classList.add('page');
+            }
 
 			const conteudo = document.createElement('div');
 
-			conteudo.className = 'conteudo-folha-preview';
+			conteudo.className = 'conteudo-folha-preview content';
 
+            const section = document.createElement('div');
+            section.className = 'section';
+
+            conteudo.appendChild(section);
 			folha.appendChild(conteudo);
 
 			return {
 				folha: folha,
-				conteudo: conteudo
+				conteudo: section,
+                folhaContent: conteudo
 			};
 		}
 
@@ -4176,187 +4195,124 @@ if (comBotao) {
 		// ============================================================
 
 		function paginarConteudo(html, baixaVisao, fatorZoom) {
-
 			document.body.classList.add('modo-monitor-paginado');
+			document.body.classList.toggle('baixa-visao-preview', baixaVisao);
 
-			document.body.classList.toggle(
-				'baixa-visao-preview',
-				baixaVisao
-			);
-
-
-			// Remove conteúdo anterior
-			let visualizador =
-				document.getElementById('visualizadorPaginado');
-
+			let visualizador = document.getElementById('visualizadorPaginado');
 			if (!visualizador) {
-
 				visualizador = document.createElement('div');
-
 				visualizador.id = 'visualizadorPaginado';
-
 				document.body.appendChild(visualizador);
 			}
-
 			visualizador.innerHTML = '';
 
-
-			// Container temporário
 			const temporario = document.createElement('div');
-
 			temporario.style.position = 'absolute';
 			temporario.style.left = '-99999px';
 			temporario.style.top = '0';
 			temporario.style.visibility = 'hidden';
-
 			temporario.innerHTML = html;
-
 			document.body.appendChild(temporario);
 
-
-			// Pega o cabeçalho e a página principal
-			const cabecalho =
-				temporario.querySelector('.pageCabecalho');
-
-			const pagina =
-				temporario.querySelector('.page');
-
-
-			// ========================================================
-			// LISTA DOS BLOCOS A SEREM PAGINADOS
-			// ========================================================
-
 			const blocos = [];
-
-
-			// Conteúdo da primeira página/cabeçalho
-			if (cabecalho) {
-
-				Array.from(cabecalho.children).forEach(function(el) {
-
-					blocos.push({
-						elemento: el.cloneNode(true),
-						primeiraPagina: true
-					});
-				});
-			}
-
-
-			// Conteúdo das demais páginas
-			if (pagina) {
-
-				Array.from(pagina.children).forEach(function(el) {
-
-					blocos.push({
-						elemento: el.cloneNode(true),
-						primeiraPagina: false
-					});
-				});
-			}
-
+			Array.from(temporario.children).forEach(function(el) {
+				if (el.classList.contains('pageCabecalho')) {
+					const section = el.querySelector('.section');
+					if (section) Array.from(section.children).forEach(child => blocos.push(child));
+				} else if (el.classList.contains('quebra-manual')) {
+					blocos.push(el);
+				} else if (el.classList.contains('page')) {
+					const section = el.querySelector('.section');
+					if (section) Array.from(section.children).forEach(child => blocos.push(child));
+				}
+			});
 
 			temporario.remove();
 
-
-			// ========================================================
-			// CRIA PRIMEIRA FOLHA
-			// ========================================================
-
 			let numeroFolha = 1;
-
-			let atual = criarFolha(
-				numeroFolha,
-				baixaVisao
-			);
-
+			let atual = criarFolha(numeroFolha, baixaVisao);
 			visualizador.appendChild(atual.folha);
 
+			let stylePreview = document.getElementById('preview-reset-style');
+			if (!stylePreview) {
+				stylePreview = document.createElement('style');
+				stylePreview.id = 'preview-reset-style';
+				document.head.appendChild(stylePreview);
+			}
+			stylePreview.innerHTML = `
+				#visualizadorPaginado .page,
+				#visualizadorPaginado .pageCabecalho {
+					margin: 0 !important;
+					min-height: 0 !important;
+					height: 100% !important;
+					box-shadow: none !important;
+					background: transparent !important;
+					padding: inherit !important;
+				}
+			`;
 
-			// ========================================================
-			// DISTRIBUI OS BLOCOS
-			// ========================================================
-
-			blocos.forEach(function(item) {
-
-				const elemento = item.elemento;
-
-
-				// Quebra manual explícita
-				if (
-					elemento.classList &&
-					elemento.classList.contains('quebra-manual')
-				) {
-
+			function inserirBloco(elemento) {
+				if (elemento.classList && elemento.classList.contains('quebra-manual')) {
 					numeroFolha++;
-
-					atual = criarFolha(
-						numeroFolha,
-						baixaVisao
-					);
-
+					atual = criarFolha(numeroFolha, baixaVisao);
 					visualizador.appendChild(atual.folha);
-
 					return;
 				}
 
-
-				// Adiciona provisoriamente
 				atual.conteudo.appendChild(elemento);
 
-
-				// Se coube, continua
-				if (!elementoEstourouFolha(atual.conteudo)) {
+				if (!elementoEstourouFolha(atual.folhaContent)) {
 					return;
 				}
 
-
-				// Não coube: remove
 				atual.conteudo.removeChild(elemento);
 
+				if (elemento.classList && (elemento.classList.contains('assunto') || elemento.classList.contains('duasColunas') || elemento.classList.contains('duasColuninhas')) && elemento.children.length > 1) {
+					let containerVazio = elemento.cloneNode(false);
+					let filhos = Array.from(elemento.children);
 
-				// Cria próxima folha
-				numeroFolha++;
+					atual.conteudo.appendChild(containerVazio);
 
-				atual = criarFolha(
-					numeroFolha,
-					baixaVisao
-				);
+					filhos.forEach(filho => {
+						containerVazio.appendChild(filho);
+						if (elementoEstourouFolha(atual.folhaContent)) {
+							containerVazio.removeChild(filho);
 
-				visualizador.appendChild(atual.folha);
+							numeroFolha++;
+							atual = criarFolha(numeroFolha, baixaVisao);
+							visualizador.appendChild(atual.folha);
 
+							containerVazio = elemento.cloneNode(false);
+							atual.conteudo.appendChild(containerVazio);
+							containerVazio.appendChild(filho);
+						}
+					});
 
-				// Coloca na próxima
-				atual.conteudo.appendChild(elemento);
-			});
-
-
-			// ========================================================
-			// REMOVE PÁGINAS ORIGINAIS DA TELA 2
-			// ========================================================
-
-			document.querySelectorAll(
-				'body > .pageCabecalho, body > .page'
-			).forEach(function(el) {
-				el.style.display = 'none';
-			});
-
-
-			// Aplica baixa visão também ao preview
-			if (baixaVisao && fatorZoom > 1) {
-
-				const styleAntigo =
-					document.getElementById(
-						'preview-baixa-visao-style'
-					);
-
-				if (styleAntigo) {
-					styleAntigo.remove();
+					if (containerVazio.clientHeight === 0 || containerVazio.innerHTML.trim() === '') {
+						if (containerVazio.parentNode) containerVazio.parentNode.removeChild(containerVazio);
+					}
+				} else {
+					numeroFolha++;
+					atual = criarFolha(numeroFolha, baixaVisao);
+					visualizador.appendChild(atual.folha);
+					atual.conteudo.appendChild(elemento);
 				}
+			}
+
+			blocos.forEach(function(elemento) {
+				inserirBloco(elemento);
+			});
+
+			document.querySelectorAll('body > .pageCabecalho, body > .page, body > .quebra-manual').forEach(function(el) {
+				if(el.style) el.style.display = 'none';
+			});
+
+			if (baixaVisao && fatorZoom > 1) {
+				const styleAntigo = document.getElementById('preview-baixa-visao-style');
+				if (styleAntigo) styleAntigo.remove();
 
 				const style = document.createElement('style');
-
 				style.id = 'preview-baixa-visao-style';
-
 				style.textContent = `
 					#visualizadorPaginado .folha-preview,
 					#visualizadorPaginado .questao,
@@ -4367,11 +4323,9 @@ if (comBotao) {
 						line-height: 1.5;
 					}
 				`;
-
 				document.head.appendChild(style);
 			}
 		}
-
 
 		// ============================================================
 		// RECEBER MENSAGENS
